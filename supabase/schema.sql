@@ -19,6 +19,9 @@
 --    had a bug — the anon key alone cannot read these tables at all.
 -- =========================================================
 
+-- pgcrypto gives us gen_random_bytes(), used below to mint the owner access_token.
+create extension if not exists pgcrypto with schema extensions;
+
 -- ---------- enums ----------
 do $$ begin
   create type staff_role as enum ('ADMIN','VETERINER','TEKNISYEN','RESEPSIYON');
@@ -62,7 +65,10 @@ create table if not exists patients (
   -- secret token used to build the owner link / QR code, e.g.
   -- https://<domain>/p/<access_token>. Rotate by generating a new one
   -- and re-issuing the link/QR when a patient is discharged & re-admitted.
-  access_token text not null unique default encode(gen_random_bytes(18), 'base64url'),
+  -- 'base64url' isn't a supported encode() target on Supabase's Postgres version,
+  -- so build a URL-safe token by hand: base64-encode, then swap the two
+  -- non-URL-safe characters and drop the '=' padding.
+  access_token text not null unique default rtrim(translate(encode(gen_random_bytes(18), 'base64'), '+/', '-_'), '='),
   access_token_active boolean not null default true,
   created_by uuid references profiles(id),
   created_at timestamptz not null default now(),
