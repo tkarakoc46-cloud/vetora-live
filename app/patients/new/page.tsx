@@ -2,7 +2,7 @@ import { addPatient } from '@/lib/actions/patients';
 import { TopBar } from '@/components/TopBar';
 import Link from 'next/link';
 
-export default function NewPatient() {
+export default function NewPatient({ searchParams }: { searchParams: { error?: string } }) {
   return (
     <div>
       <TopBar />
@@ -11,6 +11,12 @@ export default function NewPatient() {
           ← Geri
         </Link>
         <h1 className="text-lg font-bold mt-3 mb-4">Yeni Hasta Ekle</h1>
+
+        {searchParams?.error && (
+          <div className="mb-4 rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red font-semibold">
+            {searchParams.error}
+          </div>
+        )}
 
         <form action={addPatient} className="field card p-4 space-y-3">
           <div>
