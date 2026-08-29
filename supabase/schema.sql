@@ -34,9 +34,16 @@ exception when duplicate_object then null; end $$;
 do $$ begin
   create type record_type as enum (
     'vital','medication','blood','lab','feeding','excretion',
-    'vomiting','vetcheck','surgery','photo','note'
+    'vomiting','vetcheck','surgery','photo','note','event'
   );
 exception when duplicate_object then null; end $$;
+
+-- 'event' covers quick timeline entries the owner cares about seeing live:
+-- taken into / out of surgery, anesthesia given / recovered, status changes.
+-- On an already-existing database this must be added separately (Postgres
+-- won't let a brand-new enum value be used in the same transaction it was
+-- added in), so it's also listed on its own in the "migrations for an
+-- already-running project" block near the end of this file.
 
 -- ---------- profiles (1 row per staff/admin auth user) ----------
 create table if not exists profiles (
@@ -129,7 +136,10 @@ create table if not exists audit_log (
   actor_profile_id uuid references profiles(id),
   actor_name text not null,
   action text not null,
-  patient_id uuid references patients(id),
+  -- on delete set null (not the default RESTRICT): deleting a patient must
+  -- never be blocked by its own audit trail — the log entry survives with
+  -- patient_id cleared, since `detail` already carries the patient's name.
+  patient_id uuid references patients(id) on delete set null,
   detail text,
   created_at timestamptz not null default now()
 );
@@ -201,3 +211,16 @@ create policy patient_photos_staff_write on storage.objects for insert
 -- Add user), run:
 --   insert into profiles (id, full_name, role, email)
 --   values ('<the-user-uuid-from-auth>', 'Can Öztürk', 'ADMIN', 'can.ozturk@vetora.com');
+
+-- =========================================================
+-- Migrations for a project that already ran an earlier version of this
+-- file (run each block as its own separate query in the SQL Editor —
+-- ALTER TYPE ... ADD VALUE must not share a query with statements that
+-- use the new value):
+-- =========================================================
+--
+--   alter type record_type add value if not exists 'event';
+--
+--   alter table audit_log drop constraint if exists audit_log_patient_id_fkey;
+--   alter table audit_log add constraint audit_log_patient_id_fkey
+--     foreign key (patient_id) references patients(id) on delete set null;
