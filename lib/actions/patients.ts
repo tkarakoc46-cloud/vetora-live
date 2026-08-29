@@ -5,7 +5,12 @@ import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 
-const STATUS_LABEL_TR: Record<string, string> = { stable: 'Stabil', watch: 'Yakın Takip', critical: 'Kritik' };
+const STATUS_LABEL_TR: Record<string, string> = {
+  stable: 'Stabil',
+  improving: 'İyiye Gidiyor',
+  watch: 'Yakın Takip',
+  critical: 'Kritik',
+};
 
 export async function addPatient(formData: FormData) {
   const supabase = createClient();
@@ -64,7 +69,7 @@ export async function updatePatientStatus(patientId: string, formData: FormData)
   if (!user) redirect('/login');
 
   const status = String(formData.get('status') || '').trim();
-  if (!['stable', 'watch', 'critical'].includes(status)) {
+  if (!['stable', 'improving', 'watch', 'critical'].includes(status)) {
     redirect(`/patients/${patientId}?error=${encodeURIComponent('Geçersiz durum.')}`);
   }
 
@@ -85,6 +90,43 @@ export async function updatePatientStatus(patientId: string, formData: FormData)
   });
 
   revalidatePath(`/patients/${patientId}`);
+}
+
+// Any staff member can discharge a patient — unlike deletion below, this is
+// routine and non-destructive: records, photos and the owner's link all stay
+// intact, the patient just moves out of the "Yatılı" (inpatient) list and
+// into "Taburcu Edilmiş" on both the dashboard and the read-only all-patients
+// panel. We also drop a timeline entry so the owner's live feed shows it.
+export async function dischargePatient(patientId: string, _formData: FormData) {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect('/login');
+
+  const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', user!.id).single();
+
+  const { error } = await supabase
+    .from('patients')
+    .update({ discharged_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+    .eq('id', patientId);
+  if (error) {
+    redirect(`/patients/${patientId}?error=${encodeURIComponent(error.message)}`);
+  }
+
+  await supabase.from('records').insert({
+    patient_id: patientId,
+    type: 'event',
+    payload: { event: 'discharged', label: 'Hasta taburcu edildi' },
+    visible_to_owner: true,
+    created_by: user!.id,
+    created_by_name: profile?.full_name ?? 'Personel',
+  });
+
+  revalidatePath(`/patients/${patientId}`);
+  revalidatePath('/dashboard');
+  revalidatePath('/patients');
+  redirect(`/patients/${patientId}`);
 }
 
 // Admin-only, irreversible: wipes a patient and everything tied to it —

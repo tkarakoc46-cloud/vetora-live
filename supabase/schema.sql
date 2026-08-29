@@ -28,7 +28,7 @@ do $$ begin
 exception when duplicate_object then null; end $$;
 
 do $$ begin
-  create type patient_status as enum ('stable','watch','critical');
+  create type patient_status as enum ('stable','improving','watch','critical');
 exception when duplicate_object then null; end $$;
 
 do $$ begin
@@ -224,3 +224,5 @@ create policy patient_photos_staff_write on storage.objects for insert
 --   alter table audit_log drop constraint if exists audit_log_patient_id_fkey;
 --   alter table audit_log add constraint audit_log_patient_id_fkey
 --     foreign key (patient_id) references patients(id) on delete set null;
+--
+--   alter type patient_status add value if not exists 'improving';

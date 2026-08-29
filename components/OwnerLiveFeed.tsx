@@ -10,9 +10,15 @@ type RecordRow = {
   signedUrl?: string;
 };
 
-const STATUS_LABEL: Record<string, string> = { stable: 'Stabil', watch: 'Yakın Takip', critical: 'Kritik' };
+const STATUS_LABEL: Record<string, string> = {
+  stable: 'Stabil',
+  improving: 'İyiye Gidiyor',
+  watch: 'Yakın Takip',
+  critical: 'Kritik',
+};
 const STATUS_COLOR: Record<string, string> = {
   stable: 'bg-green-50 text-green',
+  improving: 'bg-accentSoft text-accent',
   watch: 'bg-amber-50 text-amber',
   critical: 'bg-red-50 text-red',
 };
@@ -23,6 +29,7 @@ const EVENT_ICON: Record<string, string> = {
   anesthesia_start: '💤',
   anesthesia_end: '👁️',
   status_change: 'ℹ️',
+  discharged: '🏠',
 };
 
 function formatIstanbul(iso: string) {

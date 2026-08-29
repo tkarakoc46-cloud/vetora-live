@@ -7,11 +7,12 @@ import {
   addPhotoRecord,
   addEventRecord,
 } from '@/lib/actions/records';
-import { updatePatientStatus, deletePatient } from '@/lib/actions/patients';
+import { updatePatientStatus, deletePatient, dischargePatient } from '@/lib/actions/patients';
 import { notFound } from 'next/navigation';
 import { TopBar } from '@/components/TopBar';
 import { PrintButton } from '@/components/PrintButton';
 import { DeletePatientForm } from '@/components/DeletePatientForm';
+import { DischargeForm } from '@/components/DischargeForm';
 import { SubmitButton } from '@/components/SubmitButton';
 import { CopyButton } from '@/components/CopyButton';
 
@@ -30,9 +31,15 @@ const TYPE_LABEL: Record<string, string> = {
   lab: 'Laboratuvar',
 };
 
-const STATUS_LABEL: Record<string, string> = { stable: 'Stabil', watch: 'Yakın Takip', critical: 'Kritik' };
+const STATUS_LABEL: Record<string, string> = {
+  stable: 'Stabil',
+  improving: 'İyiye Gidiyor',
+  watch: 'Yakın Takip',
+  critical: 'Kritik',
+};
 const STATUS_COLOR: Record<string, string> = {
   stable: 'bg-green-50 text-green',
+  improving: 'bg-accentSoft text-accent',
   watch: 'bg-amber-50 text-amber',
   critical: 'bg-red-50 text-red',
 };
@@ -97,6 +104,7 @@ export default async function PatientDetail({
   const addEvent = addEventRecord.bind(null, params.id);
   const updateStatus = updatePatientStatus.bind(null, params.id);
   const removePatient = deletePatient.bind(null, params.id);
+  const dischargeThisPatient = dischargePatient.bind(null, params.id);
 
   const ownerLink = `${process.env.NEXT_PUBLIC_APP_URL}/p/${patient.access_token}`;
   // Generated server-side as a data: URI — no external QR service call, so
@@ -121,9 +129,14 @@ export default async function PatientDetail({
       <div className="card p-4 mb-5">
         <div className="flex items-center justify-between">
           <h1 className="text-lg font-bold">{patient.name}</h1>
-          <span className={`text-xs font-bold px-2 py-1 rounded-full ${STATUS_COLOR[patient.status]}`}>
-            {STATUS_LABEL[patient.status]}
-          </span>
+          <div className="flex items-center gap-2">
+            {patient.discharged_at && (
+              <span className="text-xs font-bold px-2 py-1 rounded-full bg-surface2 text-text3">Taburcu Edildi</span>
+            )}
+            <span className={`text-xs font-bold px-2 py-1 rounded-full ${STATUS_COLOR[patient.status]}`}>
+              {STATUS_LABEL[patient.status]}
+            </span>
+          </div>
         </div>
         <div className="text-xs text-text3">
           {patient.breed} · {patient.kennel_no} · Sahibi: {patient.owner_name}
@@ -158,6 +171,7 @@ export default async function PatientDetail({
         <form action={updateStatus} className="flex gap-2">
           <select name="status" defaultValue={patient.status} className="flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-sm">
             <option value="stable">Stabil</option>
+            <option value="improving">İyiye Gidiyor</option>
             <option value="watch">Yakın Takip</option>
             <option value="critical">Kritik</option>
           </select>
@@ -245,6 +259,16 @@ export default async function PatientDetail({
         ))}
         {(records ?? []).length === 0 && <div className="p-6 text-center text-sm text-text3">Henüz kayıt yok.</div>}
       </div>
+
+      {!patient.discharged_at && (
+        <div className="card p-4 mb-6 no-print">
+          <div className="font-bold text-sm mb-1">Hastayı Taburcu Et</div>
+          <div className="text-xs text-text3 mb-3">
+            Hasta "Tüm Hastalar" listesinde taburcu edilmiş olarak işaretlenir. Kayıtları, fotoğrafları ve hasta sahibi bağlantısı saklı kalır — sadece bilgi silinmez, hasta artık "yatılı" listede görünmez.
+          </div>
+          <DischargeForm action={dischargeThisPatient} patientName={patient.name} />
+        </div>
+      )}
 
       {isAdmin && (
         <div className="card p-4 mb-6 border-red-200 no-print">

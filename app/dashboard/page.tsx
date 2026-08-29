@@ -2,9 +2,15 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { TopBar } from '@/components/TopBar';
 
-const STATUS_LABEL: Record<string, string> = { stable: 'Stabil', watch: 'Yakın Takip', critical: 'Kritik' };
+const STATUS_LABEL: Record<string, string> = {
+  stable: 'Stabil',
+  improving: 'İyiye Gidiyor',
+  watch: 'Yakın Takip',
+  critical: 'Kritik',
+};
 const STATUS_COLOR: Record<string, string> = {
   stable: 'bg-green-50 text-green',
+  improving: 'bg-accentSoft text-accent',
   watch: 'bg-amber-50 text-amber',
   critical: 'bg-red-50 text-red',
 };
