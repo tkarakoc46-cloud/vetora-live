@@ -8,7 +8,11 @@ export default async function AdminDashboard({
   searchParams: { error?: string; staffAdded?: string };
 }) {
   const supabase = createClient();
-  const { data: patients } = await supabase.from('patients').select('id, name, status').is('discharged_at', null);
+  const { data: patients } = await supabase
+    .from('patients')
+    .select('id, name, status')
+    .is('discharged_at', null)
+    .is('deceased_at', null);
   const { data: staff } = await supabase.from('profiles').select('id, full_name, role');
 
   const critical = (patients ?? []).filter((p) => p.status === 'critical');

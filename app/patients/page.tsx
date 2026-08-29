@@ -33,11 +33,12 @@ export default async function AllPatients() {
 
   const { data: patients } = await supabase
     .from('patients')
-    .select('id, name, species, breed, status, kennel_no, owner_name, admitted_at, discharged_at')
+    .select('id, name, species, breed, status, kennel_no, owner_name, admitted_at, discharged_at, deceased_at')
     .order('admitted_at', { ascending: false });
 
-  const active = (patients ?? []).filter((p) => !p.discharged_at);
-  const discharged = (patients ?? []).filter((p) => p.discharged_at);
+  const active = (patients ?? []).filter((p) => !p.discharged_at && !p.deceased_at);
+  const discharged = (patients ?? []).filter((p) => p.discharged_at && !p.deceased_at);
+  const deceased = (patients ?? []).filter((p) => p.deceased_at);
 
   return (
     <div>
@@ -80,6 +81,23 @@ export default async function AllPatients() {
             </Link>
           ))}
           {discharged.length === 0 && <div className="p-6 text-center text-sm text-text3">Taburcu edilmiş hasta yok.</div>}
+        </div>
+
+        <div className="text-xs font-bold text-text3 uppercase mb-2">Vefat Eden ({deceased.length})</div>
+        <div className="card divide-y divide-border">
+          {deceased.map((p) => (
+            <Link key={p.id} href={`/patients/${p.id}`} className="flex items-center gap-3 p-3.5 hover:bg-surface2 opacity-70">
+              <div className="flex-1">
+                <div className="font-bold text-sm">
+                  {p.name} <span className="font-medium text-text3">· {p.breed || p.species}</span>
+                </div>
+                <div className="text-xs text-text3 mt-0.5">
+                  Sahibi: {p.owner_name} · Vefat: {formatIstanbul(p.deceased_at!)}
+                </div>
+              </div>
+            </Link>
+          ))}
+          {deceased.length === 0 && <div className="p-6 text-center text-sm text-text3">Kayıt yok.</div>}
         </div>
       </div>
     </div>

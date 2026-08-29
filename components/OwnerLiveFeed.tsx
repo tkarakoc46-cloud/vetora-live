@@ -30,6 +30,12 @@ const EVENT_ICON: Record<string, string> = {
   anesthesia_end: '👁️',
   status_change: 'ℹ️',
   discharged: '🏠',
+  xray: '🩻',
+  blood_drawn: '🩸',
+  blood_results: '🧪',
+  serum: '💧',
+  injection: '💉',
+  deceased: '🕊️',
 };
 
 function formatIstanbul(iso: string) {

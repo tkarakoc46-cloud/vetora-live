@@ -26,6 +26,7 @@ export default async function Dashboard() {
     .from('patients')
     .select('id, name, species, breed, status, kennel_no')
     .is('discharged_at', null)
+    .is('deceased_at', null)
     .order('status', { ascending: true });
 
   const critical = (patients ?? []).filter((p) => p.status === 'critical').length;

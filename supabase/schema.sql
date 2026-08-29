@@ -69,6 +69,10 @@ create table if not exists patients (
   owner_email text,
   admitted_at timestamptz not null default now(),
   discharged_at timestamptz,
+  -- set only by the "Hasta EX Oldu" action; kept separate from
+  -- discharged_at so a deceased patient gets its own list instead of being
+  -- shown as a routine discharge.
+  deceased_at timestamptz,
   -- secret token used to build the owner link / QR code, e.g.
   -- https://<domain>/p/<access_token>. Rotate by generating a new one
   -- and re-issuing the link/QR when a patient is discharged & re-admitted.
@@ -226,3 +230,5 @@ create policy patient_photos_staff_write on storage.objects for insert
 --     foreign key (patient_id) references patients(id) on delete set null;
 --
 --   alter type patient_status add value if not exists 'improving';
+--
+--   alter table patients add column if not exists deceased_at timestamptz;

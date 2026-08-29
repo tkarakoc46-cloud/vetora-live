@@ -41,6 +41,11 @@ const EVENT_LABELS: Record<string, string> = {
   surgery_end: 'Ameliyattan Çıktı',
   anesthesia_start: 'Anestezi Verildi',
   anesthesia_end: 'Anesteziden Uyandı',
+  xray: 'Röntgen Çekildi',
+  blood_drawn: 'Kan Alındı',
+  blood_results: 'Kan Sonuçları Çıktı',
+  serum: 'Serum Verildi',
+  injection: 'Enjeksiyon Yapıldı',
 };
 
 export async function addEventRecord(patientId: string, formData: FormData) {

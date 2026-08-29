@@ -7,12 +7,13 @@ import {
   addPhotoRecord,
   addEventRecord,
 } from '@/lib/actions/records';
-import { updatePatientStatus, deletePatient, dischargePatient } from '@/lib/actions/patients';
+import { updatePatientStatus, deletePatient, dischargePatient, markPatientDeceased } from '@/lib/actions/patients';
 import { notFound } from 'next/navigation';
 import { TopBar } from '@/components/TopBar';
 import { PrintButton } from '@/components/PrintButton';
 import { DeletePatientForm } from '@/components/DeletePatientForm';
 import { DischargeForm } from '@/components/DischargeForm';
+import { DeceasedForm } from '@/components/DeceasedForm';
 import { SubmitButton } from '@/components/SubmitButton';
 import { CopyButton } from '@/components/CopyButton';
 
@@ -105,6 +106,7 @@ export default async function PatientDetail({
   const updateStatus = updatePatientStatus.bind(null, params.id);
   const removePatient = deletePatient.bind(null, params.id);
   const dischargeThisPatient = dischargePatient.bind(null, params.id);
+  const markThisPatientDeceased = markPatientDeceased.bind(null, params.id);
 
   const ownerLink = `${process.env.NEXT_PUBLIC_APP_URL}/p/${patient.access_token}`;
   // Generated server-side as a data: URI — no external QR service call, so
@@ -130,6 +132,9 @@ export default async function PatientDetail({
         <div className="flex items-center justify-between">
           <h1 className="text-lg font-bold">{patient.name}</h1>
           <div className="flex items-center gap-2">
+            {patient.deceased_at && (
+              <span className="text-xs font-bold px-2 py-1 rounded-full bg-navy text-white">Vefat Etti</span>
+            )}
             {patient.discharged_at && (
               <span className="text-xs font-bold px-2 py-1 rounded-full bg-surface2 text-text3">Taburcu Edildi</span>
             )}
@@ -141,6 +146,9 @@ export default async function PatientDetail({
         <div className="text-xs text-text3">
           {patient.breed} · {patient.kennel_no} · Sahibi: {patient.owner_name}
         </div>
+        {patient.deceased_at && (
+          <div className="text-xs text-navy font-semibold mt-1">Vefat: {formatIstanbul(patient.deceased_at)}</div>
+        )}
         <div className="mt-3 no-print">
           <PrintButton />
         </div>
@@ -201,6 +209,26 @@ export default async function PatientDetail({
             <input type="hidden" name="event" value="anesthesia_end" />
             <SubmitButton className="btn-outline w-full text-xs" pendingText="Ekleniyor…">👁️ Anesteziden Uyandı</SubmitButton>
           </form>
+          <form action={addEvent}>
+            <input type="hidden" name="event" value="xray" />
+            <SubmitButton className="btn-outline w-full text-xs" pendingText="Ekleniyor…">🩻 Röntgen Çekildi</SubmitButton>
+          </form>
+          <form action={addEvent}>
+            <input type="hidden" name="event" value="blood_drawn" />
+            <SubmitButton className="btn-outline w-full text-xs" pendingText="Ekleniyor…">🩸 Kan Alındı</SubmitButton>
+          </form>
+          <form action={addEvent}>
+            <input type="hidden" name="event" value="blood_results" />
+            <SubmitButton className="btn-outline w-full text-xs" pendingText="Ekleniyor…">🧪 Kan Sonuçları Çıktı</SubmitButton>
+          </form>
+          <form action={addEvent}>
+            <input type="hidden" name="event" value="serum" />
+            <SubmitButton className="btn-outline w-full text-xs" pendingText="Ekleniyor…">💧 Serum Verildi</SubmitButton>
+          </form>
+          <form action={addEvent}>
+            <input type="hidden" name="event" value="injection" />
+            <SubmitButton className="btn-outline w-full text-xs" pendingText="Ekleniyor…">💉 Enjeksiyon Yapıldı</SubmitButton>
+          </form>
         </div>
         <div className="text-[11px] text-text3 mt-2">
           Bu olaylar hasta sahibinin takip ekranında anında görünür.
@@ -260,13 +288,23 @@ export default async function PatientDetail({
         {(records ?? []).length === 0 && <div className="p-6 text-center text-sm text-text3">Henüz kayıt yok.</div>}
       </div>
 
-      {!patient.discharged_at && (
+      {!patient.discharged_at && !patient.deceased_at && (
         <div className="card p-4 mb-6 no-print">
           <div className="font-bold text-sm mb-1">Hastayı Taburcu Et</div>
           <div className="text-xs text-text3 mb-3">
             Hasta "Tüm Hastalar" listesinde taburcu edilmiş olarak işaretlenir. Kayıtları, fotoğrafları ve hasta sahibi bağlantısı saklı kalır — sadece bilgi silinmez, hasta artık "yatılı" listede görünmez.
           </div>
           <DischargeForm action={dischargeThisPatient} patientName={patient.name} />
+        </div>
+      )}
+
+      {!patient.discharged_at && !patient.deceased_at && (
+        <div className="card p-4 mb-6 border-navySoft no-print">
+          <div className="font-bold text-sm mb-1">Hasta EX Oldu</div>
+          <div className="text-xs text-text3 mb-3">
+            Bu, hastanın vefat kaydını oluşturur. Ölüm tarihi/saati aşağıdan girilir ve hasta "Tüm Hastalar" listesinde ayrı bir "Vefat Eden" bölümüne alınır — kayıtlar silinmez. Bu bilgi hasta sahibine uygulama üzerinden otomatik gösterilmez; lütfen ailesini ayrıca bilgilendirin.
+          </div>
+          <DeceasedForm action={markThisPatientDeceased} patientName={patient.name} />
         </div>
       )}
 
