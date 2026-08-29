@@ -4,10 +4,7 @@ export default function LoginGate() {
   return (
     <div className="min-h-screen flex flex-col items-center pt-16 px-4">
       <div className="flex flex-col items-center text-center mb-9">
-        <div className="w-16 h-16 rounded-2xl bg-navy flex items-center justify-center text-white font-display font-bold text-xl mb-4">
-          V
-        </div>
-        <h1 className="text-2xl font-bold">Vetora Live</h1>
+        <img src="/logo-header.png" alt="Vetora Live" className="h-14 w-auto mb-4" />
         <p className="text-text2 text-sm mt-1.5 max-w-sm">
           Yatılı hasta takip ve hasta sahibi iletişim portalı.
         </p>

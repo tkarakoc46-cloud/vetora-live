@@ -1,3 +1,4 @@
+import QRCode from 'qrcode';
 import { createClient } from '@/lib/supabase/server';
 import {
   addVitalRecord,
@@ -12,6 +13,7 @@ import { TopBar } from '@/components/TopBar';
 import { PrintButton } from '@/components/PrintButton';
 import { DeletePatientForm } from '@/components/DeletePatientForm';
 import { SubmitButton } from '@/components/SubmitButton';
+import { CopyButton } from '@/components/CopyButton';
 
 const TYPE_LABEL: Record<string, string> = {
   vital: 'Vital Bulgu',
@@ -96,6 +98,16 @@ export default async function PatientDetail({
   const updateStatus = updatePatientStatus.bind(null, params.id);
   const removePatient = deletePatient.bind(null, params.id);
 
+  const ownerLink = `${process.env.NEXT_PUBLIC_APP_URL}/p/${patient.access_token}`;
+  // Generated server-side as a data: URI — no external QR service call, so
+  // this works even if the clinic's photocopied handout has no internet
+  // access; it's just an image once it's on the page or printed.
+  const qrDataUrl = await QRCode.toDataURL(ownerLink, {
+    width: 260,
+    margin: 1,
+    color: { dark: '#131C3B', light: '#FFFFFF' },
+  });
+
   return (
     <div>
       <TopBar />
@@ -116,12 +128,28 @@ export default async function PatientDetail({
         <div className="text-xs text-text3">
           {patient.breed} · {patient.kennel_no} · Sahibi: {patient.owner_name}
         </div>
-        <div className="text-xs text-text2 mt-1">
-          Hasta sahibi bağlantısı:{' '}
-          <span className="mono">{process.env.NEXT_PUBLIC_APP_URL}/p/{patient.access_token}</span>
-        </div>
         <div className="mt-3 no-print">
           <PrintButton />
+        </div>
+      </div>
+
+      <div className="card p-4 mb-5 no-print">
+        <div className="font-bold text-sm mb-2">Hasta Sahibi Bağlantısı</div>
+        <div className="flex flex-col sm:flex-row gap-4">
+          <img
+            src={qrDataUrl}
+            alt="Hasta sahibi bağlantısı QR kodu"
+            className="w-40 h-40 rounded-lg border border-border self-start"
+          />
+          <div className="flex-1 min-w-0">
+            <div className="text-xs text-text2 mono break-all bg-surface2 rounded-lg px-3 py-2 mb-2">
+              {ownerLink}
+            </div>
+            <CopyButton text={ownerLink} />
+            <div className="text-[11px] text-text3 mt-2">
+              Bu linki veya QR kodu hasta sahibine gönderin ya da yazdırıp verin — hastanızın canlı takip sayfasına doğrudan götürür, giriş yapmalarına gerek yok.
+            </div>
+          </div>
         </div>
       </div>
 

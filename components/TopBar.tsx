@@ -17,7 +17,8 @@ export async function TopBar() {
   return (
     <div className="bg-navy text-white flex items-center justify-between px-5 py-3 no-print">
       <div className="flex items-center gap-4">
-        <Link href={homeHref} className="font-display font-bold">
+        <Link href={homeHref} className="flex items-center gap-2 font-display font-bold">
+          <img src="/icons/icon-192.png" alt="" className="h-6 w-6" />
           Vetora Live
         </Link>
         <Link href="/patients" className="text-xs font-semibold text-white/80 hover:text-white">
