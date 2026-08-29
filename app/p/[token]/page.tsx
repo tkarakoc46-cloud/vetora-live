@@ -3,7 +3,7 @@ import { getPatientByToken } from '@/lib/owner';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { sendOwnerMessage } from '@/lib/actions/ownerMessage';
 import { OwnerLiveFeed } from '@/components/OwnerLiveFeed';
-import { PrintButton } from '@/components/PrintButton';
+import { SubmitButton } from '@/components/SubmitButton';
 
 export default async function OwnerView({ params }: { params: { token: string } }) {
   const patient = await getPatientByToken(params.token);
@@ -46,9 +46,6 @@ export default async function OwnerView({ params }: { params: { token: string } 
       <div className="card p-4 mb-5">
         <h1 className="text-lg font-bold">{patient.name}</h1>
         <div className="text-xs text-text3">{patient.breed} · {patient.kennel_no}</div>
-        <div className="mt-3 no-print">
-          <PrintButton />
-        </div>
       </div>
 
       <OwnerLiveFeed token={params.token} initialRecords={withSignedUrls as any} initialStatus={patient.status} />
@@ -71,7 +68,7 @@ export default async function OwnerView({ params }: { params: { token: string } 
       </div>
       <form action={sendMessage} className="flex gap-2 no-print">
         <input name="body" placeholder="Mesajınızı yazın…" required className="flex-1 rounded-lg border border-border px-3 py-2 text-sm" />
-        <button className="btn-primary">Gönder</button>
+        <SubmitButton className="btn-primary" pendingText="Gönderiliyor…">Gönder</SubmitButton>
       </form>
     </div>
   );

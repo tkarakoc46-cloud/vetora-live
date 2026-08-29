@@ -125,11 +125,19 @@ export function OwnerLiveFeed({
               <span className="text-xs text-text3 mono">{formatIstanbul(r.created_at)}</span>
             </div>
             {r.type === 'photo' && r.signedUrl && (
-              <img
-                src={r.signedUrl}
-                alt={r.payload.caption || 'Fotoğraf'}
-                className="rounded-xl my-2 max-h-72 object-cover"
-              />
+              <a
+                href={r.signedUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block my-2"
+              >
+                <img
+                  src={r.signedUrl}
+                  alt={r.payload.caption || 'Fotoğraf'}
+                  className="rounded-xl max-h-72 object-cover w-full"
+                />
+                <div className="text-[11px] text-accent font-semibold mt-1">Büyütmek / indirmek için dokunun ↗</div>
+              </a>
             )}
             <div className="text-sm mt-1">{recordDetail(r)}</div>
           </div>

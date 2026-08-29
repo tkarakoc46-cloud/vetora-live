@@ -1,6 +1,20 @@
 'use client';
 
 import { useState } from 'react';
+import { useFormStatus } from 'react-dom';
+
+function DeleteSubmit({ canDelete }: { canDelete: boolean }) {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={!canDelete || pending}
+      className="btn-danger w-full disabled:opacity-40 disabled:cursor-not-allowed"
+    >
+      {pending ? 'Siliniyor…' : 'Hastayı ve Tüm Verilerini Kalıcı Olarak Sil'}
+    </button>
+  );
+}
 
 // The server action (lib/actions/patients.ts#deletePatient) is the real
 // security boundary — it independently re-checks the caller's role before
@@ -28,9 +42,7 @@ export function DeletePatientForm({
         placeholder={patientName}
         className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm"
       />
-      <button type="submit" disabled={!canDelete} className="btn-danger w-full disabled:opacity-40 disabled:cursor-not-allowed">
-        Hastayı ve Tüm Verilerini Kalıcı Olarak Sil
-      </button>
+      <DeleteSubmit canDelete={canDelete} />
     </form>
   );
 }

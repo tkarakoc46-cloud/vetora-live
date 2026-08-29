@@ -11,6 +11,7 @@ import { notFound } from 'next/navigation';
 import { TopBar } from '@/components/TopBar';
 import { PrintButton } from '@/components/PrintButton';
 import { DeletePatientForm } from '@/components/DeletePatientForm';
+import { SubmitButton } from '@/components/SubmitButton';
 
 const TYPE_LABEL: Record<string, string> = {
   vital: 'Vital Bulgu',
@@ -132,7 +133,7 @@ export default async function PatientDetail({
             <option value="watch">Yakın Takip</option>
             <option value="critical">Kritik</option>
           </select>
-          <button className="btn-primary">Güncelle</button>
+          <SubmitButton className="btn-primary" pendingText="Güncelleniyor…">Güncelle</SubmitButton>
         </form>
         <div className="text-[11px] text-text3 mt-2">
           Durum değiştiğinde hasta sahibinin gördüğü sayfa otomatik olarak güncellenir.
@@ -144,19 +145,19 @@ export default async function PatientDetail({
         <div className="grid grid-cols-2 gap-2">
           <form action={addEvent}>
             <input type="hidden" name="event" value="surgery_start" />
-            <button className="btn-outline w-full text-xs">🔪 Ameliyata Alındı</button>
+            <SubmitButton className="btn-outline w-full text-xs" pendingText="Ekleniyor…">🔪 Ameliyata Alındı</SubmitButton>
           </form>
           <form action={addEvent}>
             <input type="hidden" name="event" value="surgery_end" />
-            <button className="btn-outline w-full text-xs">✅ Ameliyattan Çıktı</button>
+            <SubmitButton className="btn-outline w-full text-xs" pendingText="Ekleniyor…">✅ Ameliyattan Çıktı</SubmitButton>
           </form>
           <form action={addEvent}>
             <input type="hidden" name="event" value="anesthesia_start" />
-            <button className="btn-outline w-full text-xs">💤 Anestezi Verildi</button>
+            <SubmitButton className="btn-outline w-full text-xs" pendingText="Ekleniyor…">💤 Anestezi Verildi</SubmitButton>
           </form>
           <form action={addEvent}>
             <input type="hidden" name="event" value="anesthesia_end" />
-            <button className="btn-outline w-full text-xs">👁️ Anesteziden Uyandı</button>
+            <SubmitButton className="btn-outline w-full text-xs" pendingText="Ekleniyor…">👁️ Anesteziden Uyandı</SubmitButton>
           </form>
         </div>
         <div className="text-[11px] text-text3 mt-2">
@@ -171,7 +172,7 @@ export default async function PatientDetail({
           <input name="pulse_bpm" type="number" placeholder="Nabız /dk" />
           <input name="resp_rpm" type="number" placeholder="Solunum /dk" />
           <textarea name="note" rows={2} placeholder="Not (opsiyonel)" />
-          <button className="btn-primary w-full">Kaydet</button>
+          <SubmitButton>Kaydet</SubmitButton>
         </form>
 
         <form action={addSurgery} className="field card p-4 space-y-2">
@@ -182,14 +183,14 @@ export default async function PatientDetail({
           <input name="duration_min" type="number" placeholder="Süre (dk)" />
           <input name="outcome" placeholder="Sonuç" />
           <textarea name="postop_note" rows={2} placeholder="Post-op not" />
-          <button className="btn-primary w-full">Kaydet</button>
+          <SubmitButton>Kaydet</SubmitButton>
         </form>
 
         <form action={addPhoto} className="field card p-4 space-y-2" encType="multipart/form-data">
           <div className="font-bold text-sm mb-1">Fotoğraf Ekle</div>
           <input name="photo" type="file" accept="image/*" capture="environment" required />
           <input name="caption" placeholder="Açıklama (opsiyonel)" />
-          <button className="btn-primary w-full">Kaydet</button>
+          <SubmitButton pendingText="Yükleniyor…">Kaydet</SubmitButton>
         </form>
 
         <form action={addNote} className="field card p-4 space-y-2">
@@ -198,7 +199,7 @@ export default async function PatientDetail({
           <label className="flex items-center gap-2 text-xs text-text2">
             <input type="checkbox" name="visible_to_owner" /> Hasta sahibine göster
           </label>
-          <button className="btn-primary w-full">Kaydet</button>
+          <SubmitButton>Kaydet</SubmitButton>
         </form>
       </div>
 

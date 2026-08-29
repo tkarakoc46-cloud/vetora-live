@@ -1,5 +1,6 @@
 import { addPatient } from '@/lib/actions/patients';
 import { TopBar } from '@/components/TopBar';
+import { SubmitButton } from '@/components/SubmitButton';
 import Link from 'next/link';
 
 export default function NewPatient({ searchParams }: { searchParams: { error?: string } }) {
@@ -69,7 +70,9 @@ export default function NewPatient({ searchParams }: { searchParams: { error?: s
             </div>
           </div>
 
-          <button className="btn-primary w-full !mt-5">Hastayı Kaydet</button>
+          <SubmitButton className="btn-primary w-full !mt-5" pendingText="Kaydediliyor…">
+            Hastayı Kaydet
+          </SubmitButton>
         </form>
       </div>
     </div>
