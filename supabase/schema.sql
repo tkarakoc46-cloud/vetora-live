@@ -166,10 +166,24 @@ as $$
   select exists (select 1 from profiles where id = auth.uid());
 $$;
 
--- profiles: any authenticated staff member can see all staff (for the "Personel" admin
--- screen and record "created by" pickers); a user can always see their own row.
-create policy profiles_select_staff on profiles for select
-  using (is_staff());
+-- helper: is the current authenticated user specifically an ADMIN?
+-- security definer so it can read `profiles` itself without recursing
+-- through the RLS policy defined just below (which calls this function).
+create or replace function is_admin()
+returns boolean
+language sql stable security definer
+as $$
+  select exists (select 1 from profiles where id = auth.uid() and role = 'ADMIN');
+$$;
+
+-- profiles: a staff member can always see their own row (needed for the app to
+-- read its own name/role everywhere); ONLY an ADMIN can see every staff row (the
+-- "Personel" admin screen). Regular staff (VETERINER/TEKNISYEN/RESEPSIYON) must
+-- not be able to list or look up other staff/admin accounts.
+create policy profiles_select_self on profiles for select
+  using (id = auth.uid());
+create policy profiles_select_admin_all on profiles for select
+  using (is_admin());
 -- inserts/updates to profiles are done by the server using the service-role key
 -- (e.g. when an admin invites a new staff member) — no client-side insert/update policy.
 
@@ -232,3 +246,16 @@ create policy patient_photos_staff_write on storage.objects for insert
 --   alter type patient_status add value if not exists 'improving';
 --
 --   alter table patients add column if not exists deceased_at timestamptz;
+--
+--   create or replace function is_admin()
+--   returns boolean
+--   language sql stable security definer
+--   as $$
+--     select exists (select 1 from profiles where id = auth.uid() and role = 'ADMIN');
+--   $$;
+--
+--   drop policy if exists profiles_select_staff on profiles;
+--   create policy profiles_select_self on profiles for select
+--     using (id = auth.uid());
+--   create policy profiles_select_admin_all on profiles for select
+--     using (is_admin());

@@ -1,9 +1,23 @@
+import { redirect } from 'next/navigation';
 import { addStaff } from '@/lib/actions/staff';
+import { createClient } from '@/lib/supabase/server';
 import { TopBar } from '@/components/TopBar';
 import { SubmitButton } from '@/components/SubmitButton';
 import Link from 'next/link';
 
-export default function NewStaff({ searchParams }: { searchParams: { error?: string } }) {
+export default async function NewStaff({ searchParams }: { searchParams: { error?: string } }) {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { data: myProfile } = await supabase.from('profiles').select('role').eq('id', user!.id).single();
+  // Personel ekleme formu da sadece ADMIN'e açık — addStaff() zaten aynı
+  // kontrolü yapıyor, burası doğrudan adres yazan personele boş yere
+  // hatalı bir form göstermemek için.
+  if (myProfile?.role !== 'ADMIN') {
+    redirect('/dashboard');
+  }
+
   return (
     <div>
       <TopBar />

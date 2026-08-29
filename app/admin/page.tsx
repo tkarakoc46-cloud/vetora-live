@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { TopBar } from '@/components/TopBar';
 
@@ -8,6 +9,17 @@ export default async function AdminDashboard({
   searchParams: { error?: string; staffAdded?: string };
 }) {
   const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { data: myProfile } = await supabase.from('profiles').select('role').eq('id', user!.id).single();
+  // Yönetici paneli ve personel listesi sadece ADMIN rolüne açık — diğer
+  // personel (VETERINER/TEKNISYEN/RESEPSIYON) buraya doğrudan adres yazarak
+  // da giremesin diye sunucu tarafında ayrıca kontrol ediyoruz.
+  if (myProfile?.role !== 'ADMIN') {
+    redirect('/dashboard');
+  }
+
   const { data: patients } = await supabase
     .from('patients')
     .select('id, name, status')
