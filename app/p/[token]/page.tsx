@@ -34,8 +34,9 @@ export default async function OwnerView({ params }: { params: { token: string } 
 
   return (
     <div className="max-w-2xl mx-auto p-5">
-      <div className="flex justify-center mb-4 no-print">
-        <img src="/logo-header.png" alt="Vetora Live" className="h-8 w-auto" />
+      <div className="flex items-center justify-center gap-2 mb-4 no-print">
+        <img src="/logo-header.png" alt="Börü Care" className="h-8 w-8" />
+        <span className="font-display font-bold text-sm">Börü Care</span>
       </div>
 
       <div className="card p-4 mb-5">

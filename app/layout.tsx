@@ -2,13 +2,13 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Vetora Live',
+  title: 'Börü Care',
   description: 'Veteriner yatılı hasta takip sistemi',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'Vetora Live',
+    title: 'Börü Care',
   },
   icons: {
     icon: '/icons/favicon-32.png',

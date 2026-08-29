@@ -1,6 +1,6 @@
 {
-  "name": "Vetora Live",
-  "short_name": "Vetora Live",
+  "name": "Börü Care",
+  "short_name": "Börü Care",
   "description": "Veteriner yatılı hasta takip sistemi",
   "start_url": "/login",
   "scope": "/",

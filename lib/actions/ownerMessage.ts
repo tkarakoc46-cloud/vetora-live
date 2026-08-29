@@ -28,7 +28,7 @@ export async function sendOwnerMessage(token: string, formData: FormData) {
     .single();
 
   // 2) Forward to the clinic's WhatsApp number in real time.
-  const waText = `📩 Vetora Live — ${patient.name} (${patient.owner_name}):\n${body}`;
+  const waText = `📩 Börü Care — ${patient.name} (${patient.owner_name}):\n${body}`;
   const result = await sendWhatsAppMessage(waText);
 
   if (message) {
