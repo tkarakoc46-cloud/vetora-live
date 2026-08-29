@@ -42,7 +42,12 @@ export default async function Dashboard() {
         </div>
       </div>
 
-      <div className="text-xs font-bold text-text3 uppercase mb-2">Yatılı Hastalar</div>
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-xs font-bold text-text3 uppercase">Yatılı Hastalar</div>
+        <Link href="/patients/new" className="btn-primary !py-1.5 !px-3 !text-xs">
+          + Yeni Hasta Ekle
+        </Link>
+      </div>
       <div className="card divide-y divide-border">
         {(patients ?? []).map((p) => (
           <Link key={p.id} href={`/patients/${p.id}`} className="flex items-center gap-3 p-3.5 hover:bg-surface2">

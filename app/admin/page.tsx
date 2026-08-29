@@ -13,7 +13,12 @@ export default async function AdminDashboard() {
     <div>
       <TopBar />
       <div className="max-w-3xl mx-auto p-5">
-        <h1 className="text-lg font-bold mb-4">Yönetici Paneli</h1>
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="text-lg font-bold">Yönetici Paneli</h1>
+          <Link href="/patients/new" className="btn-primary !py-1.5 !px-3 !text-xs">
+            + Yeni Hasta Ekle
+          </Link>
+        </div>
 
         <div className="grid grid-cols-2 gap-3 mb-6">
           <div className="card p-4">
