@@ -2,7 +2,11 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { TopBar } from '@/components/TopBar';
 
-export default async function AdminDashboard() {
+export default async function AdminDashboard({
+  searchParams,
+}: {
+  searchParams: { error?: string; staffAdded?: string };
+}) {
   const supabase = createClient();
   const { data: patients } = await supabase.from('patients').select('id, name, status').is('discharged_at', null);
   const { data: staff } = await supabase.from('profiles').select('id, full_name, role');
@@ -19,6 +23,17 @@ export default async function AdminDashboard() {
             + Yeni Hasta Ekle
           </Link>
         </div>
+
+        {searchParams?.error && (
+          <div className="mb-4 rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red font-semibold">
+            {searchParams.error}
+          </div>
+        )}
+        {searchParams?.staffAdded && (
+          <div className="mb-4 rounded-lg bg-green-50 border border-green-200 p-3 text-sm text-green font-semibold">
+            ✓ Personel eklendi. E-posta ve şifreyi kendilerine iletebilirsin.
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-3 mb-6">
           <div className="card p-4">
@@ -41,7 +56,12 @@ export default async function AdminDashboard() {
           {critical.length === 0 && <div className="p-4 text-sm text-text3">Kritik hasta yok.</div>}
         </div>
 
-        <div className="text-xs font-bold text-text3 uppercase mb-2">Personel</div>
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-xs font-bold text-text3 uppercase">Personel</div>
+          <Link href="/admin/staff/new" className="text-xs font-bold text-accent">
+            + Yeni Personel Ekle
+          </Link>
+        </div>
         <div className="card divide-y divide-border">
           {(staff ?? []).map((s) => (
             <div key={s.id} className="p-3.5 text-sm">
