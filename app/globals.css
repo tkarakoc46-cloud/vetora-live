@@ -35,3 +35,25 @@ h1, h2, h3 {
 .field input, .field textarea, .field select {
   @apply w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-accent;
 }
+
+.btn-danger {
+  @apply btn bg-red text-white hover:opacity-90;
+}
+
+/* Print / "PDF olarak kaydet" support: the browser's own print-to-PDF is
+   used instead of a server-side PDF library — anything with .no-print is
+   hidden, and the timeline card is given breathing room + page-break rules
+   so a long inpatient history prints as a clean, readable report. */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: white;
+  }
+  .card {
+    box-shadow: none !important;
+    border: 1px solid #ddd !important;
+    break-inside: avoid;
+  }
+}

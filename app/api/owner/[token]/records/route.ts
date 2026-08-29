@@ -18,7 +18,7 @@ export async function GET(req: NextRequest, { params }: { params: { token: strin
     .eq('patient_id', patient.id)
     .eq('visible_to_owner', true)
     .order('created_at', { ascending: false })
-    .limit(30);
+    .limit(200);
 
   const withSignedUrls = await Promise.all(
     (records ?? []).map(async (r) => {
@@ -30,5 +30,11 @@ export async function GET(req: NextRequest, { params }: { params: { token: strin
     })
   );
 
-  return NextResponse.json({ records: withSignedUrls });
+  // Also return the patient's current headline status, so the owner's
+  // status badge updates live from the same 5s poll instead of only on a
+  // full page reload.
+  return NextResponse.json({
+    records: withSignedUrls,
+    patient: { status: patient.status, name: patient.name },
+  });
 }

@@ -24,6 +24,36 @@ export async function addVitalRecord(patientId: string, formData: FormData) {
       resp_rpm: Number(formData.get('resp_rpm')) || null,
       note: String(formData.get('note') || ''),
     },
+    visible_to_owner: true,
+    created_by: userId,
+    created_by_name: name,
+  });
+  revalidatePath(`/patients/${patientId}`);
+}
+
+// Quick one-tap events for the moments an owner most wants to know about in
+// real time: taken into / out of surgery, anesthesia given / recovered
+// from. Reuses the record_type 'event' (see supabase/schema.sql migration
+// note) so these show up inline in the same timeline/live feed as
+// everything else, clearly labeled.
+const EVENT_LABELS: Record<string, string> = {
+  surgery_start: 'Ameliyata Alındı',
+  surgery_end: 'Ameliyattan Çıktı',
+  anesthesia_start: 'Anestezi Verildi',
+  anesthesia_end: 'Anesteziden Uyandı',
+};
+
+export async function addEventRecord(patientId: string, formData: FormData) {
+  const { supabase, userId, name } = await currentStaff();
+  const event = String(formData.get('event') || '');
+  const label = EVENT_LABELS[event];
+  if (!label) throw new Error('Geçersiz olay.');
+
+  await supabase.from('records').insert({
+    patient_id: patientId,
+    type: 'event',
+    payload: { event, label, note: String(formData.get('note') || '') },
+    visible_to_owner: true,
     created_by: userId,
     created_by_name: name,
   });
@@ -43,6 +73,7 @@ export async function addSurgeryRecord(patientId: string, formData: FormData) {
       outcome: String(formData.get('outcome') || ''),
       postop_note: String(formData.get('postop_note') || ''),
     },
+    visible_to_owner: true,
     created_by: userId,
     created_by_name: name,
   });
