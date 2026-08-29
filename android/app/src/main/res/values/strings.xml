@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Börü Care</string>
+    <string name="host">vetora-live.vercel.app</string>
+    <string name="launch_url">https://vetora-live.vercel.app/login</string>
+    <!-- Read by androidbrowserhelper as a fallback declaration of the same
+         relationship published at https://vetora-live.vercel.app/.well-known/assetlinks.json -->
+    <string name="asset_statements">[{\"relation\": [\"delegate_permission/common.handle_all_urls\"], \"target\": {\"namespace\": \"web\", \"site\": \"https://vetora-live.vercel.app\"}}]</string>
+</resources>

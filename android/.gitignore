@@ -1,0 +1,15 @@
+*.iml
+.gradle
+/local.properties
+/.idea
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# The real signing keystore is never committed — it's stored as a base64
+# GitHub Actions secret (ANDROID_KEYSTORE_BASE64) and decoded to this path
+# only inside the CI runner at build time.
+app/release.keystore

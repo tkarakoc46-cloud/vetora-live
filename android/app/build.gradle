@@ -1,0 +1,58 @@
+apply plugin: 'com.android.application'
+
+android {
+    namespace 'com.borucare.app'
+    // NOTE (verify at submission time): Play Store's minimum targetSdk
+    // requirement moves forward roughly once a year (every ~August). 34 was
+    // the confirmed requirement as of early 2025 — check the current
+    // requirement in Play Console before your final submission and bump
+    // compileSdk/targetSdk here (then re-run the GitHub Action) if needed.
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.borucare.app"
+        minSdkVersion 21
+        targetSdkVersion 34
+        // Play Store's "new app" release — first submission must be 1.
+        // Every later update must strictly increase versionCode.
+        versionCode 1
+        versionName "1.0.0"
+    }
+
+    signingConfigs {
+        release {
+            // Populated from GitHub Actions secrets at CI build time — see
+            // .github/workflows/android-release.yml. Never commit real
+            // keystore/password values here.
+            def ksPath = System.getenv("ANDROID_KEYSTORE_PATH")
+            if (ksPath != null) {
+                storeFile file(ksPath)
+                storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("ANDROID_KEY_ALIAS")
+                keyPassword System.getenv("ANDROID_KEY_PASSWORD")
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    // androidbrowserhelper's LauncherActivity does all the TWA work (opens
+    // the hosted URL full-screen via Custom Tabs, handles the splash
+    // screen and Digital Asset Links verification) — no Kotlin/Java app
+    // code needed, just the AndroidManifest configuration below.
+    implementation 'androidx.browser:browser:1.8.0'
+    implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.5.0'
+}

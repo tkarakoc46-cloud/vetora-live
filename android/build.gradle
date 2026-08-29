@@ -1,0 +1,28 @@
+// Root build file for the Börü Care Android wrapper.
+//
+// This is a Trusted Web Activity (TWA) — Google's official, supported way to
+// publish an existing PWA to the Play Store without a separate native
+// codebase. It does not re-implement the app: it launches the real,
+// deployed web app (https://vetora-live.vercel.app) full-screen, using
+// Chrome's rendering engine under the hood. All product logic stays in the
+// Next.js app; this project is just the store-installable shell + signing.
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.5.2'
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+task clean(type: Delete) {
+    delete rootProject.buildDir
+}

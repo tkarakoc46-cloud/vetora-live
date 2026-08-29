@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.borucare.app",
+      "sha256_cert_fingerprints": [
+        "A8:7F:0F:54:0A:2A:3B:E9:F6:80:40:51:8F:0B:23:29:73:CF:F7:2A:70:DD:ED:11:D8:AA:87:D9:23:9F:F4:93"
+      ]
+    }
+  }
+]
