@@ -36,7 +36,7 @@ export function OwnerTabs({
             tab === 'lab' ? 'bg-navy text-white' : 'bg-surface2 text-text2'
           }`}
         >
-          Laboratuvar{labCount > 0 ? ` (${labCount})` : ''}
+          e-Klinik{labCount > 0 ? ` (${labCount})` : ''}
         </button>
       </div>
       <div style={{ display: tab === 'takip' ? 'block' : 'none' }}>{takip}</div>

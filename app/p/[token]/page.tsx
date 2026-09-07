@@ -19,6 +19,19 @@ function formatIstanbul(iso: string) {
   });
 }
 
+const CATEGORY_LABEL: Record<string, string> = {
+  kan_tahlili: 'Kan Tahlili',
+  tomografi: 'Tomografi',
+  rontgen: 'Röntgen',
+  diger: 'Diğer',
+};
+const CATEGORY_ICON: Record<string, string> = {
+  kan_tahlili: '🩸',
+  tomografi: '🧲',
+  rontgen: '🩻',
+  diger: '📄',
+};
+
 export default async function OwnerView({ params }: { params: { token: string } }) {
   const patient = await getPatientByToken(params.token);
   if (!patient) notFound(); // an inactive/unknown token looks identical to a 404 — no information leak
@@ -72,17 +85,17 @@ export default async function OwnerView({ params }: { params: { token: string } 
           rel="noopener noreferrer"
           className="flex items-center gap-3 p-3.5 hover:bg-surface2"
         >
-          <span className="text-lg">📄</span>
+          <span className="text-lg">{CATEGORY_ICON[l.category] ?? '📄'}</span>
           <div className="flex-1 min-w-0">
             <div className="font-bold text-sm truncate">{l.title}</div>
             <div className="text-xs text-text3">
-              {l.taken_at ? formatDateOnly(l.taken_at) : formatIstanbul(l.created_at)}
+              {CATEGORY_LABEL[l.category] ?? 'Diğer'} · {l.taken_at ? formatDateOnly(l.taken_at) : formatIstanbul(l.created_at)}
             </div>
           </div>
         </a>
       ))}
       {labResults.length === 0 && (
-        <div className="p-6 text-center text-sm text-text3">Henüz yüklenmiş tahlil sonucu yok.</div>
+        <div className="p-6 text-center text-sm text-text3">Henüz yüklenmiş belge yok.</div>
       )}
     </div>
   );
@@ -97,7 +110,7 @@ export default async function OwnerView({ params }: { params: { token: string } 
       <div className="card p-4 mb-5">
         <h1 className="text-lg font-bold">{patient.name}</h1>
         <div className="text-xs text-text3">
-          {patient.breed} · {isInpatient ? patient.kennel_no : 'Poliklinik / Tahlil'}
+          {patient.breed} · {isInpatient ? patient.kennel_no : 'Poliklinik / e-Klinik'}
         </div>
       </div>
 
@@ -111,7 +124,7 @@ export default async function OwnerView({ params }: { params: { token: string } 
         />
       ) : (
         <div>
-          <div className="text-xs font-bold text-text3 uppercase mb-2">Laboratuvar Sonuçları</div>
+          <div className="text-xs font-bold text-text3 uppercase mb-2">e-Klinik</div>
           {labPanel}
         </div>
       )}

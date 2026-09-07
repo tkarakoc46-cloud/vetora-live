@@ -30,11 +30,11 @@ export default function NewPatient({ searchParams }: { searchParams: { error?: s
               </label>
               <label className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-semibold cursor-pointer has-[:checked]:border-accent has-[:checked]:bg-accentSoft">
                 <input type="radio" name="patient_kind" value="outpatient" defaultChecked={defaultOutpatient} />
-                Poliklinik (Sadece Tahlil)
+                Poliklinik (Sadece e-Klinik)
               </label>
             </div>
             <div className="text-[11px] text-text3 mt-1">
-              Poliklinik seçilirse hasta "Yatılı" listelerine girmez — sadece laboratuvar sonucu arşivlemek ve hasta sahibine link/QR ile paylaşmak için kayıt açılır.
+              Poliklinik seçilirse hasta "Yatılı" listelerine girmez — sadece e-Klinik belgesi (kan tahlili, tomografi, röntgen) arşivlemek ve hasta sahibine link/QR ile paylaşmak için kayıt açılır.
             </div>
           </div>
 

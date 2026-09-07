@@ -140,17 +140,22 @@ create table if not exists daily_tasks (
 );
 create index if not exists daily_tasks_patient_idx on daily_tasks(patient_id, due_date);
 
--- ---------- lab results (uploaded PDF blood-test / lab reports, archive only) ----------
--- Deliberately NOT structured/parsed data — the clinic uploads the lab's own
--- PDF report as-is and it's archived + shown to the owner exactly as issued.
--- No OCR/field extraction: simplest, and avoids ever mis-reading a value.
+-- ---------- e-Klinik belgeleri (kan tahlili / tomografi / röntgen — arşiv) ----------
+-- Deliberately NOT structured/parsed data — the clinic uploads the lab's/
+-- radyoloji's own PDF report or görüntü as-is and it's archived + shown to
+-- the owner exactly as issued. No OCR/field extraction: simplest, and
+-- avoids ever mis-reading a value. Tablo adı (lab_results) tarihi kalmış
+-- olsa da içerik artık sadece kan tahlili değil — kullanıcıya "e-Klinik"
+-- olarak gösteriliyor (e-Devlet/e-Nabız mantığı: türe göre etiketli belge
+-- arşivi).
 create table if not exists lab_results (
   id uuid primary key default gen_random_uuid(),
   patient_id uuid not null references patients(id) on delete cascade,
+  category text not null default 'kan_tahlili' check (category in ('kan_tahlili','tomografi','rontgen','diger')),
   title text not null,                 -- e.g. "Tam Kan Sayımı", personel girer; boşsa dosya adı kullanılır
   file_name text not null,             -- orijinal dosya adı (görüntülemede kullanılır)
   storage_path text not null,          -- lab-results/<patient_id>/<timestamp>-<dosya adı>
-  taken_at date,                       -- tahlilin alındığı tarih (opsiyonel, personel girer)
+  taken_at date,                       -- belgenin alındığı tarih (opsiyonel, personel girer)
   visible_to_owner boolean not null default true,
   uploaded_by uuid references profiles(id),
   uploaded_by_name text not null,      -- diğer tablolardaki created_by_name ile aynı mantık: denormalize edilmiş
@@ -312,6 +317,7 @@ create policy lab_results_files_staff_delete on storage.objects for delete
 --   create table if not exists lab_results (
 --     id uuid primary key default gen_random_uuid(),
 --     patient_id uuid not null references patients(id) on delete cascade,
+--     category text not null default 'kan_tahlili' check (category in ('kan_tahlili','tomografi','rontgen','diger')),
 --     title text not null,
 --     file_name text not null,
 --     storage_path text not null,

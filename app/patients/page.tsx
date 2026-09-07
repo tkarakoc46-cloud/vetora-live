@@ -48,7 +48,7 @@ export default async function AllPatients() {
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-lg font-bold">Tüm Hastalar</h1>
           <Link href="/patients/new?kind=outpatient" className="text-xs font-bold text-accent">
-            + Tahlil için Hasta Ekle
+            + e-Klinik için Hasta Ekle
           </Link>
         </div>
 
@@ -106,7 +106,7 @@ export default async function AllPatients() {
           {deceased.length === 0 && <div className="p-6 text-center text-sm text-text3">Kayıt yok.</div>}
         </div>
 
-        <div className="text-xs font-bold text-text3 uppercase mb-2">Poliklinik / Tahlil Hastaları ({outpatients.length})</div>
+        <div className="text-xs font-bold text-text3 uppercase mb-2">Poliklinik / e-Klinik Hastaları ({outpatients.length})</div>
         <div className="card divide-y divide-border">
           {outpatients.map((p) => (
             <Link key={p.id} href={`/patients/${p.id}`} className="flex items-center gap-3 p-3.5 hover:bg-surface2">
@@ -118,7 +118,7 @@ export default async function AllPatients() {
                   Sahibi: {p.owner_name} · Kayıt: {formatIstanbul(p.admitted_at)}
                 </div>
               </div>
-              <span className="text-xs font-bold px-2 py-1 rounded-full bg-surface2 text-text3">Tahlil</span>
+              <span className="text-xs font-bold px-2 py-1 rounded-full bg-surface2 text-text3">e-Klinik</span>
             </Link>
           ))}
           {outpatients.length === 0 && (

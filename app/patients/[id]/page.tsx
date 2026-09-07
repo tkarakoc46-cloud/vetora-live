@@ -33,6 +33,19 @@ const TYPE_LABEL: Record<string, string> = {
   lab: 'Laboratuvar',
 };
 
+const CATEGORY_LABEL: Record<string, string> = {
+  kan_tahlili: 'Kan Tahlili',
+  tomografi: 'Tomografi',
+  rontgen: 'Röntgen',
+  diger: 'Diğer',
+};
+const CATEGORY_ICON: Record<string, string> = {
+  kan_tahlili: '🩸',
+  tomografi: '🧲',
+  rontgen: '🩻',
+  diger: '📄',
+};
+
 const STATUS_LABEL: Record<string, string> = {
   stable: 'Stabil',
   improving: 'İyiye Gidiyor',
@@ -170,7 +183,7 @@ export default async function PatientDetail({
               </span>
             ) : (
               <span className="text-xs font-bold px-2 py-1 rounded-full bg-surface2 text-text3">
-                Poliklinik · Sadece Tahlil
+                Poliklinik · e-Klinik
               </span>
             )}
           </div>
@@ -207,22 +220,33 @@ export default async function PatientDetail({
       </div>
 
       <div className="card p-4 mb-5 no-print">
-        <div className="font-bold text-sm mb-2">Laboratuvar Sonuçları</div>
+        <div className="font-bold text-sm mb-2">e-Klinik</div>
         <form action={uploadLabResult} className="field space-y-2 mb-3" encType="multipart/form-data">
-          <input name="pdf" type="file" accept="application/pdf,.pdf" required />
+          <select name="category" defaultValue="kan_tahlili" required>
+            <option value="kan_tahlili">🩸 Kan Tahlili</option>
+            <option value="tomografi">🧲 Tomografi</option>
+            <option value="rontgen">🩻 Röntgen</option>
+            <option value="diger">📄 Diğer</option>
+          </select>
+          <input
+            name="file"
+            type="file"
+            accept="application/pdf,.pdf,image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+            required
+          />
           <div className="grid grid-cols-2 gap-2">
             <input name="title" placeholder="Başlık (örn: Tam Kan Sayımı)" />
             <input name="taken_at" type="date" />
           </div>
-          <SubmitButton pendingText="Yükleniyor…">PDF Yükle</SubmitButton>
+          <SubmitButton pendingText="Yükleniyor…">Belgeyi Yükle</SubmitButton>
         </form>
         <div className="text-[11px] text-text3 mb-2">
-          Yüklenen PDF olduğu gibi arşivlenir ve hasta sahibinin takip linkindeki Laboratuvar sekmesinde görünür.
+          Yüklenen belge (PDF veya resim) olduğu gibi arşivlenir ve hasta sahibinin takip linkindeki e-Klinik sekmesinde görünür.
         </div>
         <div className="divide-y divide-border rounded-lg border border-border">
           {labResults.map((l) => (
             <div key={l.id} className="flex items-center gap-3 p-3 text-sm">
-              <span>📄</span>
+              <span>{CATEGORY_ICON[l.category] ?? '📄'}</span>
               <a
                 href={l.signedUrl}
                 target="_blank"
@@ -230,6 +254,9 @@ export default async function PatientDetail({
                 className="flex-1 min-w-0 font-semibold text-accent truncate"
               >
                 {l.title}
+                <span className="block text-[11px] text-text3 font-normal">
+                  {CATEGORY_LABEL[l.category] ?? 'Diğer'}
+                </span>
               </a>
               <span className="text-xs text-text3 whitespace-nowrap">
                 {l.taken_at ? formatDateOnly(l.taken_at) : formatIstanbul(l.created_at)}
@@ -242,7 +269,7 @@ export default async function PatientDetail({
             </div>
           ))}
           {labResults.length === 0 && (
-            <div className="p-4 text-center text-xs text-text3">Henüz yüklenmiş tahlil sonucu yok.</div>
+            <div className="p-4 text-center text-xs text-text3">Henüz yüklenmiş belge yok.</div>
           )}
         </div>
       </div>
