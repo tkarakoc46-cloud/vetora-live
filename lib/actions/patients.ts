@@ -24,9 +24,13 @@ export async function addPatient(formData: FormData) {
   const name = String(formData.get('name') || '').trim();
   const species = String(formData.get('species') || '').trim();
   const owner_name = String(formData.get('owner_name') || '').trim();
+  const patient_kind = String(formData.get('patient_kind') || 'inpatient').trim();
 
   if (!name || !species || !owner_name) {
     redirect(`/patients/new?error=${encodeURIComponent('Hasta adı, tür ve hasta sahibinin adı zorunludur.')}`);
+  }
+  if (!['inpatient', 'outpatient'].includes(patient_kind)) {
+    redirect(`/patients/new?error=${encodeURIComponent('Geçersiz kayıt türü.')}`);
   }
 
   const { data: patient, error } = await supabase
@@ -38,6 +42,7 @@ export async function addPatient(formData: FormData) {
       sex: String(formData.get('sex') || '').trim() || null,
       age_years: formData.get('age_years') ? Number(formData.get('age_years')) : null,
       kennel_no: String(formData.get('kennel_no') || '').trim() || null,
+      patient_kind,
       owner_name,
       owner_phone: String(formData.get('owner_phone') || '').trim() || null,
       owner_email: String(formData.get('owner_email') || '').trim() || null,

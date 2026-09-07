@@ -33,18 +33,24 @@ export default async function AllPatients() {
 
   const { data: patients } = await supabase
     .from('patients')
-    .select('id, name, species, breed, status, kennel_no, owner_name, admitted_at, discharged_at, deceased_at')
+    .select('id, name, species, breed, status, kennel_no, owner_name, patient_kind, admitted_at, discharged_at, deceased_at')
     .order('admitted_at', { ascending: false });
 
-  const active = (patients ?? []).filter((p) => !p.discharged_at && !p.deceased_at);
-  const discharged = (patients ?? []).filter((p) => p.discharged_at && !p.deceased_at);
-  const deceased = (patients ?? []).filter((p) => p.deceased_at);
+  const active = (patients ?? []).filter((p) => p.patient_kind !== 'outpatient' && !p.discharged_at && !p.deceased_at);
+  const discharged = (patients ?? []).filter((p) => p.patient_kind !== 'outpatient' && p.discharged_at && !p.deceased_at);
+  const deceased = (patients ?? []).filter((p) => p.patient_kind !== 'outpatient' && p.deceased_at);
+  const outpatients = (patients ?? []).filter((p) => p.patient_kind === 'outpatient');
 
   return (
     <div>
       <TopBar />
       <div className="max-w-3xl mx-auto p-5">
-        <h1 className="text-lg font-bold mb-4">Tüm Hastalar</h1>
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="text-lg font-bold">Tüm Hastalar</h1>
+          <Link href="/patients/new?kind=outpatient" className="text-xs font-bold text-accent">
+            + Tahlil için Hasta Ekle
+          </Link>
+        </div>
 
         <div className="text-xs font-bold text-text3 uppercase mb-2">Yatılı ({active.length})</div>
         <div className="card divide-y divide-border mb-6">
@@ -84,7 +90,7 @@ export default async function AllPatients() {
         </div>
 
         <div className="text-xs font-bold text-text3 uppercase mb-2">Vefat Eden ({deceased.length})</div>
-        <div className="card divide-y divide-border">
+        <div className="card divide-y divide-border mb-6">
           {deceased.map((p) => (
             <Link key={p.id} href={`/patients/${p.id}`} className="flex items-center gap-3 p-3.5 hover:bg-surface2 opacity-70">
               <div className="flex-1">
@@ -98,6 +104,26 @@ export default async function AllPatients() {
             </Link>
           ))}
           {deceased.length === 0 && <div className="p-6 text-center text-sm text-text3">Kayıt yok.</div>}
+        </div>
+
+        <div className="text-xs font-bold text-text3 uppercase mb-2">Poliklinik / Tahlil Hastaları ({outpatients.length})</div>
+        <div className="card divide-y divide-border">
+          {outpatients.map((p) => (
+            <Link key={p.id} href={`/patients/${p.id}`} className="flex items-center gap-3 p-3.5 hover:bg-surface2">
+              <div className="flex-1">
+                <div className="font-bold text-sm">
+                  {p.name} <span className="font-medium text-text3">· {p.breed || p.species}</span>
+                </div>
+                <div className="text-xs text-text3 mt-0.5">
+                  Sahibi: {p.owner_name} · Kayıt: {formatIstanbul(p.admitted_at)}
+                </div>
+              </div>
+              <span className="text-xs font-bold px-2 py-1 rounded-full bg-surface2 text-text3">Tahlil</span>
+            </Link>
+          ))}
+          {outpatients.length === 0 && (
+            <div className="p-6 text-center text-sm text-text3">Poliklinik/tahlil kaydı yok.</div>
+          )}
         </div>
       </div>
     </div>

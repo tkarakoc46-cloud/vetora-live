@@ -23,6 +23,7 @@ export default async function AdminDashboard({
   const { data: patients } = await supabase
     .from('patients')
     .select('id, name, status')
+    .eq('patient_kind', 'inpatient')
     .is('discharged_at', null)
     .is('deceased_at', null);
   const { data: staff } = await supabase.from('profiles').select('id, full_name, role');

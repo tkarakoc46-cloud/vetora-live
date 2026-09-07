@@ -8,6 +8,7 @@ import {
   addEventRecord,
 } from '@/lib/actions/records';
 import { updatePatientStatus, deletePatient, dischargePatient, markPatientDeceased } from '@/lib/actions/patients';
+import { addLabResult, deleteLabResult } from '@/lib/actions/labResults';
 import { notFound } from 'next/navigation';
 import { TopBar } from '@/components/TopBar';
 import { PrintButton } from '@/components/PrintButton';
@@ -55,6 +56,13 @@ function formatIstanbul(iso: string) {
   });
 }
 
+function formatDateOnly(dateStr: string) {
+  // taken_at bir `date` kolonu (saatsiz) — saat dilimi çevirisine gerek yok,
+  // olduğu gibi gg.aa.yyyy formatına çeviriyoruz.
+  const [y, m, d] = dateStr.split('-');
+  return `${d}.${m}.${y}`;
+}
+
 function summarizePayload(type: string, payload: any): string {
   switch (type) {
     case 'vital':
@@ -97,12 +105,30 @@ export default async function PatientDetail({
     .order('created_at', { ascending: false })
     .limit(500);
 
+  const { data: labResultRows } = await supabase
+    .from('lab_results')
+    .select('*')
+    .eq('patient_id', params.id)
+    .order('created_at', { ascending: false });
+
+  // Personel de sahibi gibi imzalı (geçici) bir link üzerinden görüntülüyor —
+  // bucket private olduğu için doğrudan public URL yok.
+  const labResults = await Promise.all(
+    (labResultRows ?? []).map(async (l) => {
+      const { data } = await supabase.storage.from('lab-results').createSignedUrl(l.storage_path, 3600);
+      return { ...l, signedUrl: data?.signedUrl };
+    })
+  );
+
+  const isInpatient = patient.patient_kind !== 'outpatient';
+
   // bind the patient id so the <form action={...}> below doesn't need a hidden input
   const addVital = addVitalRecord.bind(null, params.id);
   const addSurgery = addSurgeryRecord.bind(null, params.id);
   const addNote = addNoteRecord.bind(null, params.id);
   const addPhoto = addPhotoRecord.bind(null, params.id);
   const addEvent = addEventRecord.bind(null, params.id);
+  const uploadLabResult = addLabResult.bind(null, params.id);
   const updateStatus = updatePatientStatus.bind(null, params.id);
   const removePatient = deletePatient.bind(null, params.id);
   const dischargeThisPatient = dischargePatient.bind(null, params.id);
@@ -138,9 +164,15 @@ export default async function PatientDetail({
             {patient.discharged_at && (
               <span className="text-xs font-bold px-2 py-1 rounded-full bg-surface2 text-text3">Taburcu Edildi</span>
             )}
-            <span className={`text-xs font-bold px-2 py-1 rounded-full ${STATUS_COLOR[patient.status]}`}>
-              {STATUS_LABEL[patient.status]}
-            </span>
+            {isInpatient ? (
+              <span className={`text-xs font-bold px-2 py-1 rounded-full ${STATUS_COLOR[patient.status]}`}>
+                {STATUS_LABEL[patient.status]}
+              </span>
+            ) : (
+              <span className="text-xs font-bold px-2 py-1 rounded-full bg-surface2 text-text3">
+                Poliklinik · Sadece Tahlil
+              </span>
+            )}
           </div>
         </div>
         <div className="text-xs text-text3">
@@ -175,6 +207,48 @@ export default async function PatientDetail({
       </div>
 
       <div className="card p-4 mb-5 no-print">
+        <div className="font-bold text-sm mb-2">Laboratuvar Sonuçları</div>
+        <form action={uploadLabResult} className="field space-y-2 mb-3" encType="multipart/form-data">
+          <input name="pdf" type="file" accept="application/pdf,.pdf" required />
+          <div className="grid grid-cols-2 gap-2">
+            <input name="title" placeholder="Başlık (örn: Tam Kan Sayımı)" />
+            <input name="taken_at" type="date" />
+          </div>
+          <SubmitButton pendingText="Yükleniyor…">PDF Yükle</SubmitButton>
+        </form>
+        <div className="text-[11px] text-text3 mb-2">
+          Yüklenen PDF olduğu gibi arşivlenir ve hasta sahibinin takip linkindeki Laboratuvar sekmesinde görünür.
+        </div>
+        <div className="divide-y divide-border rounded-lg border border-border">
+          {labResults.map((l) => (
+            <div key={l.id} className="flex items-center gap-3 p-3 text-sm">
+              <span>📄</span>
+              <a
+                href={l.signedUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 min-w-0 font-semibold text-accent truncate"
+              >
+                {l.title}
+              </a>
+              <span className="text-xs text-text3 whitespace-nowrap">
+                {l.taken_at ? formatDateOnly(l.taken_at) : formatIstanbul(l.created_at)}
+              </span>
+              <form action={deleteLabResult.bind(null, params.id, l.id, l.storage_path)}>
+                <button type="submit" className="text-xs text-red font-semibold ml-1">
+                  Sil
+                </button>
+              </form>
+            </div>
+          ))}
+          {labResults.length === 0 && (
+            <div className="p-4 text-center text-xs text-text3">Henüz yüklenmiş tahlil sonucu yok.</div>
+          )}
+        </div>
+      </div>
+
+      {isInpatient && (
+      <div className="card p-4 mb-5 no-print">
         <div className="font-bold text-sm mb-2">Durum Güncelle</div>
         <form action={updateStatus} className="flex gap-2">
           <select name="status" defaultValue={patient.status} className="flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-sm">
@@ -189,7 +263,9 @@ export default async function PatientDetail({
           Durum değiştiğinde hasta sahibinin gördüğü sayfa otomatik olarak güncellenir.
         </div>
       </div>
+      )}
 
+      {isInpatient && (
       <div className="card p-4 mb-5 no-print">
         <div className="font-bold text-sm mb-2">Hızlı Olay Ekle</div>
         <div className="grid grid-cols-2 gap-2">
@@ -234,8 +310,10 @@ export default async function PatientDetail({
           Bu olaylar hasta sahibinin takip ekranında anında görünür.
         </div>
       </div>
+      )}
 
       <div className="grid sm:grid-cols-2 gap-4 mb-6 no-print">
+        {isInpatient && (
         <form action={addVital} className="field card p-4 space-y-2">
           <div className="font-bold text-sm mb-1">Vital Bulgu Ekle</div>
           <input name="temp_c" type="number" step="0.1" placeholder="Isı °C" />
@@ -244,7 +322,9 @@ export default async function PatientDetail({
           <textarea name="note" rows={2} placeholder="Not (opsiyonel)" />
           <SubmitButton>Kaydet</SubmitButton>
         </form>
+        )}
 
+        {isInpatient && (
         <form action={addSurgery} className="field card p-4 space-y-2">
           <div className="font-bold text-sm mb-1">Ameliyat Kaydı Ekle</div>
           <input name="procedure" placeholder="Prosedür" required />
@@ -255,13 +335,16 @@ export default async function PatientDetail({
           <textarea name="postop_note" rows={2} placeholder="Post-op not" />
           <SubmitButton>Kaydet</SubmitButton>
         </form>
+        )}
 
+        {isInpatient && (
         <form action={addPhoto} className="field card p-4 space-y-2" encType="multipart/form-data">
           <div className="font-bold text-sm mb-1">Fotoğraf Ekle</div>
           <input name="photo" type="file" accept="image/*" capture="environment" required />
           <input name="caption" placeholder="Açıklama (opsiyonel)" />
           <SubmitButton pendingText="Yükleniyor…">Kaydet</SubmitButton>
         </form>
+        )}
 
         <form action={addNote} className="field card p-4 space-y-2">
           <div className="font-bold text-sm mb-1">Not Ekle</div>
@@ -288,7 +371,7 @@ export default async function PatientDetail({
         {(records ?? []).length === 0 && <div className="p-6 text-center text-sm text-text3">Henüz kayıt yok.</div>}
       </div>
 
-      {!patient.discharged_at && !patient.deceased_at && (
+      {isInpatient && !patient.discharged_at && !patient.deceased_at && (
         <div className="card p-4 mb-6 no-print">
           <div className="font-bold text-sm mb-1">Hastayı Taburcu Et</div>
           <div className="text-xs text-text3 mb-3">
@@ -298,7 +381,7 @@ export default async function PatientDetail({
         </div>
       )}
 
-      {!patient.discharged_at && !patient.deceased_at && (
+      {isInpatient && !patient.discharged_at && !patient.deceased_at && (
         <div className="card p-4 mb-6 border-navySoft no-print">
           <div className="font-bold text-sm mb-1">Hasta EX Oldu</div>
           <div className="text-xs text-text3 mb-3">

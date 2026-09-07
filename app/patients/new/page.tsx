@@ -3,7 +3,8 @@ import { TopBar } from '@/components/TopBar';
 import { SubmitButton } from '@/components/SubmitButton';
 import Link from 'next/link';
 
-export default function NewPatient({ searchParams }: { searchParams: { error?: string } }) {
+export default function NewPatient({ searchParams }: { searchParams: { error?: string; kind?: string } }) {
+  const defaultOutpatient = searchParams?.kind === 'outpatient';
   return (
     <div>
       <TopBar />
@@ -20,6 +21,25 @@ export default function NewPatient({ searchParams }: { searchParams: { error?: s
         )}
 
         <form action={addPatient} className="field card p-4 space-y-3">
+          <div>
+            <label>Kayıt türü</label>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-semibold cursor-pointer has-[:checked]:border-accent has-[:checked]:bg-accentSoft">
+                <input type="radio" name="patient_kind" value="inpatient" defaultChecked={!defaultOutpatient} />
+                Yatılı Hasta
+              </label>
+              <label className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-semibold cursor-pointer has-[:checked]:border-accent has-[:checked]:bg-accentSoft">
+                <input type="radio" name="patient_kind" value="outpatient" defaultChecked={defaultOutpatient} />
+                Poliklinik (Sadece Tahlil)
+              </label>
+            </div>
+            <div className="text-[11px] text-text3 mt-1">
+              Poliklinik seçilirse hasta "Yatılı" listelerine girmez — sadece laboratuvar sonucu arşivlemek ve hasta sahibine link/QR ile paylaşmak için kayıt açılır.
+            </div>
+          </div>
+
+          <div className="pt-2 border-t border-border" />
+
           <div>
             <label>Hasta adı</label>
             <input name="name" required placeholder="Örn: Luna" />

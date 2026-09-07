@@ -25,6 +25,7 @@ export default async function Dashboard() {
   const { data: patients } = await supabase
     .from('patients')
     .select('id, name, species, breed, status, kennel_no')
+    .eq('patient_kind', 'inpatient')
     .is('discharged_at', null)
     .is('deceased_at', null)
     .order('status', { ascending: true });

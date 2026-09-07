@@ -63,6 +63,12 @@ create table if not exists patients (
   sex text,
   age_years numeric,
   kennel_no text,
+  -- 'inpatient': normal yatılı hasta takibi (durum, hızlı olay, taburcu, EX).
+  -- 'outpatient': sadece laboratuvar arşivi için açılan poliklinik kaydı —
+  -- yatış/durum/taburcu kavramları bunlar için anlamsız, dashboard/"Yatılı"
+  -- listelerine hiç girmezler, sadece kendi bölümünde ve hasta sahibinin
+  -- Laboratuvar sekmesinde görünürler.
+  patient_kind text not null default 'inpatient' check (patient_kind in ('inpatient','outpatient')),
   status patient_status not null default 'stable',
   owner_name text not null,
   owner_phone text,
@@ -134,6 +140,24 @@ create table if not exists daily_tasks (
 );
 create index if not exists daily_tasks_patient_idx on daily_tasks(patient_id, due_date);
 
+-- ---------- lab results (uploaded PDF blood-test / lab reports, archive only) ----------
+-- Deliberately NOT structured/parsed data — the clinic uploads the lab's own
+-- PDF report as-is and it's archived + shown to the owner exactly as issued.
+-- No OCR/field extraction: simplest, and avoids ever mis-reading a value.
+create table if not exists lab_results (
+  id uuid primary key default gen_random_uuid(),
+  patient_id uuid not null references patients(id) on delete cascade,
+  title text not null,                 -- e.g. "Tam Kan Sayımı", personel girer; boşsa dosya adı kullanılır
+  file_name text not null,             -- orijinal dosya adı (görüntülemede kullanılır)
+  storage_path text not null,          -- lab-results/<patient_id>/<timestamp>-<dosya adı>
+  taken_at date,                       -- tahlilin alındığı tarih (opsiyonel, personel girer)
+  visible_to_owner boolean not null default true,
+  uploaded_by uuid references profiles(id),
+  uploaded_by_name text not null,      -- diğer tablolardaki created_by_name ile aynı mantık: denormalize edilmiş
+  created_at timestamptz not null default now()
+);
+create index if not exists lab_results_patient_idx on lab_results(patient_id, created_at desc);
+
 -- ---------- audit log ----------
 create table if not exists audit_log (
   id uuid primary key default gen_random_uuid(),
@@ -157,6 +181,7 @@ alter table records enable row level security;
 alter table messages enable row level security;
 alter table daily_tasks enable row level security;
 alter table audit_log enable row level security;
+alter table lab_results enable row level security;
 
 -- helper: is the current authenticated user a known staff/admin profile?
 create or replace function is_staff()
@@ -207,6 +232,10 @@ create policy daily_tasks_insert_staff on daily_tasks for insert with check (is_
 create policy audit_log_select_staff on audit_log for select using (is_staff());
 create policy audit_log_insert_staff on audit_log for insert with check (is_staff());
 
+create policy lab_results_all_staff on lab_results for select using (is_staff());
+create policy lab_results_insert_staff on lab_results for insert with check (is_staff());
+create policy lab_results_delete_staff on lab_results for delete using (is_staff());
+
 -- =========================================================
 -- Storage bucket for patient photos (private; served via signed URLs)
 -- =========================================================
@@ -221,6 +250,23 @@ create policy patient_photos_staff_write on storage.objects for insert
 
 -- Owners never get direct Storage access either — the server mints a short-lived
 -- signed URL for each photo when it serves the owner view (see lib/owner.ts).
+
+-- =========================================================
+-- Storage bucket for uploaded lab-result PDFs (private; served via signed URLs)
+-- =========================================================
+insert into storage.buckets (id, name, public)
+  values ('lab-results','lab-results', false)
+  on conflict (id) do nothing;
+
+create policy lab_results_files_staff_read on storage.objects for select
+  using (bucket_id = 'lab-results' and is_staff());
+create policy lab_results_files_staff_write on storage.objects for insert
+  with check (bucket_id = 'lab-results' and is_staff());
+create policy lab_results_files_staff_delete on storage.objects for delete
+  using (bucket_id = 'lab-results' and is_staff());
+
+-- Owners reach lab PDFs the same way as photos: no direct Storage access,
+-- the server mints a short-lived signed URL when it serves the owner view.
 
 -- =========================================================
 -- Seed one admin profile placeholder (optional)
@@ -259,3 +305,34 @@ create policy patient_photos_staff_write on storage.objects for insert
 --     using (id = auth.uid());
 --   create policy profiles_select_admin_all on profiles for select
 --     using (is_admin());
+--
+--   alter table patients add column if not exists patient_kind text not null default 'inpatient'
+--     check (patient_kind in ('inpatient','outpatient'));
+--
+--   create table if not exists lab_results (
+--     id uuid primary key default gen_random_uuid(),
+--     patient_id uuid not null references patients(id) on delete cascade,
+--     title text not null,
+--     file_name text not null,
+--     storage_path text not null,
+--     taken_at date,
+--     visible_to_owner boolean not null default true,
+--     uploaded_by uuid references profiles(id),
+--     uploaded_by_name text not null,
+--     created_at timestamptz not null default now()
+--   );
+--   create index if not exists lab_results_patient_idx on lab_results(patient_id, created_at desc);
+--   alter table lab_results enable row level security;
+--   create policy lab_results_all_staff on lab_results for select using (is_staff());
+--   create policy lab_results_insert_staff on lab_results for insert with check (is_staff());
+--   create policy lab_results_delete_staff on lab_results for delete using (is_staff());
+--
+--   insert into storage.buckets (id, name, public)
+--     values ('lab-results','lab-results', false)
+--     on conflict (id) do nothing;
+--   create policy lab_results_files_staff_read on storage.objects for select
+--     using (bucket_id = 'lab-results' and is_staff());
+--   create policy lab_results_files_staff_write on storage.objects for insert
+--     with check (bucket_id = 'lab-results' and is_staff());
+--   create policy lab_results_files_staff_delete on storage.objects for delete
+--     using (bucket_id = 'lab-results' and is_staff());
