@@ -89,6 +89,11 @@ export async function extractLabResultTable(
     if (err?.message === 'GEMINI_QUOTA_EXCEEDED') {
       return { error: 'Şu anda kullanım sınırına ulaşıldı. Lütfen birkaç dakika sonra tekrar deneyin.' };
     }
+    if (typeof err?.message === 'string' && /^GEMINI_HTTP_(500|502|503|504)$/.test(err.message)) {
+      return {
+        error: 'Google’un yapay zeka servisi şu anda çok yoğun/geçici olarak erişilemez durumda. Lütfen birkaç saniye bekleyip tekrar deneyin.',
+      };
+    }
     if (err?.name === 'AbortError') {
       return { error: 'Sunucudan zamanında yanıt alınamadı. Lütfen tekrar deneyin.' };
     }

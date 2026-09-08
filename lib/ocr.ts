@@ -84,6 +84,88 @@ const PROMPT = `Bu görselde bir veteriner hastanesine ait kan tahlili / laborat
 - unit: varsa birim (ör. "mg/dL", "10^3/uL"), yoksa boş metin
 Sadece belgede GERÇEKTEN yazılı olan bilgiyi çıkar; hiçbir değeri tahmin etme veya uydurma. Hasta adı, tarih, hastane adı gibi test satırı olmayan bilgileri dahil etme. Belgeyi okuyamıyorsan ya da hiç test satırı yoksa boş bir liste ([]) döndür.`;
 
+// Gemini'nin ücretsiz katmanı zaman zaman "503 overloaded" (model şu an
+// çok yoğun) ya da "429" (dakikalık istek sınırı) döndürebiliyor — bu
+// KALICI bir hata değil, birkaç saniye içinde genelde kendiliğinden
+// düzeliyor. İlk denemede pes edip kullanıcıya hemen hata göstermek yerine,
+// kısa bir bekleme ile birkaç kez daha deniyoruz; sadece bütün denemeler
+// başarısız olursa gerçek bir hata döndürüyoruz.
+const MAX_ATTEMPTS = 3;
+const RETRY_DELAY_MS = [1500, 3000];
+const RETRYABLE_STATUS = new Set([503, 429, 500, 502, 504]);
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function callGemini(apiKey: string, bytes: Buffer, mimeType: string, t0: number): Promise<any> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const controller = new AbortController();
+    // Gemini normalde birkaç saniyede yanıt veriyor; yine de ağ takılırsa
+    // sunucusuz fonksiyonun kendi sert süre sınırı (maxDuration) tarafından
+    // hiç açıklama vermeden kesilmek yerine kendi kontrollü zaman
+    // aşımımızı koyuyoruz.
+    const timeout = setTimeout(() => controller.abort(), 20_000);
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [{ text: PROMPT }, { inline_data: { mime_type: mimeType, data: bytes.toString('base64') } }],
+              },
+            ],
+            generationConfig: {
+              response_mime_type: 'application/json',
+              response_schema: RESPONSE_SCHEMA,
+              temperature: 0,
+            },
+          }),
+        }
+      );
+      logStep(`Gemini API yanıtı alındı (deneme ${attempt}/${MAX_ATTEMPTS})`, t0);
+
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => '');
+        // eslint-disable-next-line no-console
+        console.error(`Gemini API hata döndürdü (deneme ${attempt}/${MAX_ATTEMPTS}):`, res.status, errBody);
+        if (res.status === 400 && /API key not valid/i.test(errBody)) {
+          throw new Error('GEMINI_API_KEY_INVALID');
+        }
+        if (RETRYABLE_STATUS.has(res.status) && attempt < MAX_ATTEMPTS) {
+          lastError = new Error(res.status === 429 ? 'GEMINI_QUOTA_EXCEEDED' : `GEMINI_HTTP_${res.status}`);
+          await sleep(RETRY_DELAY_MS[attempt - 1] ?? 3000);
+          continue;
+        }
+        if (res.status === 429) {
+          throw new Error('GEMINI_QUOTA_EXCEEDED');
+        }
+        throw new Error(`GEMINI_HTTP_${res.status}`);
+      }
+
+      return await res.json();
+    } catch (err: any) {
+      // Zaman aşımı ya da ağ hatası — yine yeniden denenebilir bir durum.
+      if (err?.message === 'GEMINI_API_KEY_INVALID') throw err;
+      if (attempt < MAX_ATTEMPTS && (err?.name === 'AbortError' || err instanceof TypeError)) {
+        lastError = err;
+        await sleep(RETRY_DELAY_MS[attempt - 1] ?? 3000);
+        continue;
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+  throw lastError ?? new Error('GEMINI_UNKNOWN');
+}
+
 export async function extractLabRowsWithGemini(imageBytes: Buffer | Uint8Array): Promise<LabRow[]> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -93,75 +175,30 @@ export async function extractLabRowsWithGemini(imageBytes: Buffer | Uint8Array):
   const { bytes, mimeType } = await preprocessImage(imageBytes);
   logStep('görüntü ön işleme bitti', t0);
 
-  const controller = new AbortController();
-  // Gemini normalde birkaç saniyede yanıt veriyor; yine de ağ takılırsa
-  // sunucusuz fonksiyonun kendi sert süre sınırı (maxDuration) tarafından
-  // hiç açıklama vermeden kesilmek yerine kendi kontrollü zaman aşımımızı
-  // koyuyoruz.
-  const timeout = setTimeout(() => controller.abort(), 45_000);
-  try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: controller.signal,
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [{ text: PROMPT }, { inline_data: { mime_type: mimeType, data: bytes.toString('base64') } }],
-            },
-          ],
-          generationConfig: {
-            response_mime_type: 'application/json',
-            response_schema: RESPONSE_SCHEMA,
-            temperature: 0,
-          },
-        }),
-      }
-    );
-    logStep('Gemini API yanıtı alındı', t0);
-
-    if (!res.ok) {
-      const errBody = await res.text().catch(() => '');
-      // eslint-disable-next-line no-console
-      console.error('Gemini API hata döndürdü:', res.status, errBody);
-      if (res.status === 400 && /API key not valid/i.test(errBody)) {
-        throw new Error('GEMINI_API_KEY_INVALID');
-      }
-      if (res.status === 429) {
-        throw new Error('GEMINI_QUOTA_EXCEEDED');
-      }
-      throw new Error(`GEMINI_HTTP_${res.status}`);
-    }
-
-    const json = await res.json();
-    const text = json?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!text) {
-      // eslint-disable-next-line no-console
-      console.error('Gemini yanıtında metin yok:', JSON.stringify(json).slice(0, 500));
-      return [];
-    }
-
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(text);
-    } catch {
-      // eslint-disable-next-line no-console
-      console.error('Gemini yanıtı JSON olarak ayrıştırılamadı:', String(text).slice(0, 500));
-      return [];
-    }
-    if (!Array.isArray(parsed)) return [];
-
-    return parsed
-      .map((r: any) => ({
-        name: String(r?.name ?? '').trim(),
-        result: String(r?.result ?? '').trim(),
-        range: String(r?.range ?? '').trim(),
-        unit: String(r?.unit ?? '').trim(),
-      }))
-      .filter((r) => r.name.length > 0);
-  } finally {
-    clearTimeout(timeout);
+  const json = await callGemini(apiKey, bytes, mimeType, t0);
+  const text = json?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) {
+    // eslint-disable-next-line no-console
+    console.error('Gemini yanıtında metin yok:', JSON.stringify(json).slice(0, 500));
+    return [];
   }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    // eslint-disable-next-line no-console
+    console.error('Gemini yanıtı JSON olarak ayrıştırılamadı:', String(text).slice(0, 500));
+    return [];
+  }
+  if (!Array.isArray(parsed)) return [];
+
+  return parsed
+    .map((r: any) => ({
+      name: String(r?.name ?? '').trim(),
+      result: String(r?.result ?? '').trim(),
+      range: String(r?.range ?? '').trim(),
+      unit: String(r?.unit ?? '').trim(),
+    }))
+    .filter((r) => r.name.length > 0);
 }
