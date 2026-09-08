@@ -18,6 +18,14 @@ import { SubmitButton } from '@/components/SubmitButton';
 import { CopyButton } from '@/components/CopyButton';
 import { LabResultUploadForm } from '@/components/LabResultUploadForm';
 import { PhotoUploadForm } from '@/components/PhotoUploadForm';
+import { LabResultDigitizeButton } from '@/components/OcrReviewPanel';
+
+// e-Klinik "Dijitalleştir" (OCR) adımı bu sayfadan tetiklenen bir Server
+// Action olarak çalışıyor; motoru/dil verisini indirip görüntüyü okuması
+// varsayılan sunucusuz fonksiyon süresinden (10sn) biraz daha uzun
+// sürebiliyor, bu yüzden bu route için süreyi artırıyoruz (Vercel planınız
+// izin verdiği kadarıyla).
+export const maxDuration = 60;
 
 const TYPE_LABEL: Record<string, string> = {
   vital: 'Vital Bulgu',
@@ -227,33 +235,52 @@ export default async function PatientDetail({
           tarayıcının/PDF görüntüleyicinin kendi paylaş veya yazdır simgesiyle yazdırabilir ya da telefonunuza kaydedebilirsiniz.
         </div>
         <div className="divide-y divide-border rounded-lg border border-border">
-          {labResults.map((l) => (
-            <div key={l.id} className="flex items-center gap-3 p-3 text-sm">
-              <span>{CATEGORY_ICON[l.category] ?? '📄'}</span>
-              <a
-                href={l.signedUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1 min-w-0 font-semibold text-accent truncate"
-              >
-                {l.title}
-                <span className="block text-[11px] text-text3 font-normal">
-                  {CATEGORY_LABEL[l.category] ?? 'Diğer'} · Görüntüle / Yazdır
-                </span>
-              </a>
-              <span className="text-xs text-text3 whitespace-nowrap">
-                {l.taken_at ? formatDateOnly(l.taken_at) : formatIstanbul(l.created_at)}
-              </span>
-              <form action={deleteLabResult.bind(null, params.id, l.id, l.storage_path)}>
-                <button type="submit" className="text-xs text-red font-semibold ml-1">
-                  Sil
-                </button>
-              </form>
-            </div>
-          ))}
+          {labResults.map((l) => {
+            const isImageFile = !(l.file_name || '').toLowerCase().endsWith('.pdf');
+            return (
+              <div key={l.id} className="p-3 text-sm">
+                <div className="flex items-center gap-3">
+                  <span>{CATEGORY_ICON[l.category] ?? '📄'}</span>
+                  <a
+                    href={l.signedUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 min-w-0 font-semibold text-accent truncate"
+                  >
+                    {l.title}
+                    <span className="block text-[11px] text-text3 font-normal">
+                      {CATEGORY_LABEL[l.category] ?? 'Diğer'} · Görüntüle / Yazdır
+                    </span>
+                  </a>
+                  <span className="text-xs text-text3 whitespace-nowrap">
+                    {l.taken_at ? formatDateOnly(l.taken_at) : formatIstanbul(l.created_at)}
+                  </span>
+                  {isImageFile && (
+                    <LabResultDigitizeButton
+                      patientId={params.id}
+                      labResultId={l.id}
+                      defaultTitle={l.title}
+                      defaultCategory={l.category}
+                      defaultTakenAt={l.taken_at}
+                    />
+                  )}
+                  <form action={deleteLabResult.bind(null, params.id, l.id, l.storage_path)}>
+                    <button type="submit" className="text-xs text-red font-semibold ml-1">
+                      Sil
+                    </button>
+                  </form>
+                </div>
+              </div>
+            );
+          })}
           {labResults.length === 0 && (
             <div className="p-4 text-center text-xs text-text3">Henüz yüklenmiş belge yok.</div>
           )}
+        </div>
+        <div className="text-[11px] text-text3 mt-2">
+          🔎 Dijitalleştir: fotoğraf/tarama olarak yüklenen bir belgedeki yazıyı otomatik okuyup düzenli bir tabloya
+          çevirir; siz kontrol edip onayladıktan sonra MED CARE ANIMALS logolu, yazdırılabilir bir PDF olarak arşive
+          eklenir. Orijinal fotoğraf silinmez, ayrıca arşivde kalır.
         </div>
       </div>
 
