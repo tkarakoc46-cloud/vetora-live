@@ -41,7 +41,9 @@ export function LabResultDigitizeButton({
     setLoading(true);
     try {
       const result = await extractLabResultTable(labResultId);
-      if ('error' in result) {
+      if (!result || typeof result !== 'object') {
+        setError('Sunucudan geçerli bir yanıt alınamadı. Lütfen tekrar deneyin; devam ederse bana bildirin.');
+      } else if ('error' in result) {
         setError(result.error);
       } else {
         setRows(result.rows);
@@ -81,6 +83,10 @@ export function LabResultDigitizeButton({
         category: defaultCategory,
         takenAt: defaultTakenAt || '',
       });
+      if (!result || typeof result !== 'object') {
+        setError('Sunucudan geçerli bir yanıt alınamadı. Lütfen tekrar deneyin; devam ederse bana bildirin.');
+        return;
+      }
       if ('error' in result) {
         setError(result.error);
         return;

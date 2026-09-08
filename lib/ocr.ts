@@ -16,7 +16,15 @@
 // (bkz. components/OcrReviewPanel.tsx, lib/actions/ocr.ts). Otomatik olarak
 // hiçbir değer, personel onayı olmadan hastanın kalıcı kaydına yazılmaz.
 import { createWorker } from 'tesseract.js';
-import sharp from 'sharp';
+// NOT: sharp bilerek STATİK değil, aşağıda DİNAMİK olarak import ediliyor.
+// sharp, platforma özgü bir native (derlenmiş) ikili dosya kullanıyor;
+// bu ikili herhangi bir sebeple (paketleme/platform uyuşmazlığı) yüklenemezse
+// modül en üstte `import sharp from 'sharp'` yapılmış olsaydı bu dosyanın
+// TAMAMI, dolayısıyla onu kullanan Server Action da çalışma anında
+// yüklenemez hale gelirdi — bu da personele "Cannot use 'in' operator ...
+// in undefined" gibi anlaşılmaz, hiçbir işe yaramayan bir hata olarak
+// yansırdı. Dinamik import + try/catch ile sharp yüklenemese bile OCR'ın
+// geri kalanı (ön işleme adımı atlanarak) çalışmaya devam edebiliyor.
 
 function assetBaseUrl() {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://vetora-live.vercel.app';
@@ -31,16 +39,21 @@ function assetBaseUrl() {
 // hızlandırıyor.
 async function preprocessForOcr(imageBytes: Buffer | Uint8Array): Promise<Buffer> {
   try {
+    const sharpModule = await import('sharp');
+    const sharp = sharpModule.default;
     return await sharp(Buffer.from(imageBytes))
       .rotate() // EXIF yönlendirmesine göre düzelt
       .resize({ width: 2200, height: 2200, fit: 'inside', withoutEnlargement: true })
       .grayscale()
       .toFormat('png')
       .toBuffer();
-  } catch {
-    // Ön işleme başarısız olursa (ör. desteklenmeyen/bozuk bir format),
-    // OCR'ı orijinal dosya ile denemeye devam edelim — hiç sonuç
-    // vermemektense biraz daha yavaş da olsa denemek daha iyi.
+  } catch (err) {
+    // Ön işleme başarısız olursa (ör. desteklenmeyen/bozuk bir format ya da
+    // sharp'ın native modülü bu ortamda yüklenemediyse), OCR'ı orijinal
+    // dosya ile denemeye devam edelim — hiç sonuç vermemektense biraz daha
+    // yavaş da olsa denemek daha iyi.
+    // eslint-disable-next-line no-console
+    console.error('OCR ön işleme (sharp) atlandı:', err);
     return Buffer.from(imageBytes);
   }
 }
