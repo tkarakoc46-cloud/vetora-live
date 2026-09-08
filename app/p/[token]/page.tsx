@@ -1,8 +1,6 @@
 import { notFound } from 'next/navigation';
 import { getPatientByToken } from '@/lib/owner';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { OwnerLiveFeed } from '@/components/OwnerLiveFeed';
-import { OwnerTabs } from '@/components/OwnerTabs';
 import { WhatsAppContact } from '@/components/WhatsAppContact';
 
 function formatDateOnly(dateStr: string) {
@@ -37,29 +35,6 @@ export default async function OwnerView({ params }: { params: { token: string } 
   if (!patient) notFound(); // an inactive/unknown token looks identical to a 404 — no information leak
 
   const supabase = createAdminClient();
-  const isInpatient = patient.patient_kind !== 'outpatient';
-
-  const { data: records } = await supabase
-    .from('records')
-    .select('*')
-    .eq('patient_id', patient.id)
-    .eq('visible_to_owner', true)
-    .order('created_at', { ascending: false })
-    .limit(200);
-
-  // Mint short-lived signed URLs for any photos in this batch — the
-  // owner's browser never gets direct Storage access or a permanent URL.
-  const withSignedUrls = await Promise.all(
-    (records ?? []).map(async (r) => {
-      if (r.type === 'photo' && r.payload?.storage_path) {
-        const { data } = await supabase.storage
-          .from('patient-photos')
-          .createSignedUrl(r.payload.storage_path, 3600);
-        return { ...r, signedUrl: data?.signedUrl };
-      }
-      return r;
-    })
-  );
 
   const { data: labResultRows } = await supabase
     .from('lab_results')
@@ -109,25 +84,13 @@ export default async function OwnerView({ params }: { params: { token: string } 
 
       <div className="card p-4 mb-5">
         <h1 className="text-lg font-bold">{patient.name}</h1>
-        <div className="text-xs text-text3">
-          {patient.breed} · {isInpatient ? patient.kennel_no : 'Poliklinik / e-Klinik'}
-        </div>
+        <div className="text-xs text-text3">{patient.breed} · Sahibi: {patient.owner_name}</div>
       </div>
 
-      {isInpatient ? (
-        <OwnerTabs
-          takip={
-            <OwnerLiveFeed token={params.token} initialRecords={withSignedUrls as any} initialStatus={patient.status} />
-          }
-          lab={labPanel}
-          labCount={labResults.length}
-        />
-      ) : (
-        <div>
-          <div className="text-xs font-bold text-text3 uppercase mb-2">e-Klinik</div>
-          {labPanel}
-        </div>
-      )}
+      <div>
+        <div className="text-xs font-bold text-text3 uppercase mb-2">e-Klinik</div>
+        {labPanel}
+      </div>
 
       <WhatsAppContact
         hospitalNumber={process.env.WHATSAPP_HOSPITAL_NUMBER || ''}

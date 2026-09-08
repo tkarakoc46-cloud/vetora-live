@@ -20,15 +20,8 @@ export default async function AdminDashboard({
     redirect('/dashboard');
   }
 
-  const { data: patients } = await supabase
-    .from('patients')
-    .select('id, name, status')
-    .eq('patient_kind', 'inpatient')
-    .is('discharged_at', null)
-    .is('deceased_at', null);
+  const { count: patientCount } = await supabase.from('patients').select('id', { count: 'exact', head: true });
   const { data: staff } = await supabase.from('profiles').select('id, full_name, role');
-
-  const critical = (patients ?? []).filter((p) => p.status === 'critical');
 
   return (
     <div>
@@ -52,25 +45,9 @@ export default async function AdminDashboard({
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-3 mb-6">
-          <div className="card p-4">
-            <div className="text-xs font-semibold text-text2">Yatılı Hasta</div>
-            <div className="text-2xl font-bold mt-1">{patients?.length ?? 0}</div>
-          </div>
-          <div className="card p-4 bg-red-50">
-            <div className="text-xs font-semibold text-red">Kritik</div>
-            <div className="text-2xl font-bold mt-1 text-red">{critical.length}</div>
-          </div>
-        </div>
-
-        <div className="text-xs font-bold text-text3 uppercase mb-2">Kritik Hastalar</div>
-        <div className="card divide-y divide-border mb-6">
-          {critical.map((p) => (
-            <Link key={p.id} href={`/patients/${p.id}`} className="block p-3.5 hover:bg-surface2 text-sm font-bold">
-              {p.name}
-            </Link>
-          ))}
-          {critical.length === 0 && <div className="p-4 text-sm text-text3">Kritik hasta yok.</div>}
+        <div className="card p-4 mb-6">
+          <div className="text-xs font-semibold text-text2">Toplam Hasta</div>
+          <div className="text-2xl font-bold mt-1">{patientCount ?? 0}</div>
         </div>
 
         <div className="flex items-center justify-between mb-2">

@@ -1,46 +1,23 @@
 import QRCode from 'qrcode';
 import { createClient } from '@/lib/supabase/server';
-import {
-  addVitalRecord,
-  addSurgeryRecord,
-  addNoteRecord,
-  addEventRecord,
-} from '@/lib/actions/records';
-import { updatePatientStatus, deletePatient, dischargePatient, markPatientDeceased } from '@/lib/actions/patients';
+import { addNoteRecord } from '@/lib/actions/records';
+import { deletePatient } from '@/lib/actions/patients';
 import { deleteLabResult } from '@/lib/actions/labResults';
 import { notFound } from 'next/navigation';
 import { TopBar } from '@/components/TopBar';
 import { PrintButton } from '@/components/PrintButton';
 import { DeletePatientForm } from '@/components/DeletePatientForm';
-import { DischargeForm } from '@/components/DischargeForm';
-import { DeceasedForm } from '@/components/DeceasedForm';
 import { SubmitButton } from '@/components/SubmitButton';
 import { CopyButton } from '@/components/CopyButton';
 import { LabResultUploadForm } from '@/components/LabResultUploadForm';
-import { PhotoUploadForm } from '@/components/PhotoUploadForm';
 import { LabResultDigitizeButton } from '@/components/OcrReviewPanel';
 
 // e-Klinik "Dijitalleştir" (OCR) adımı bu sayfadan tetiklenen bir Server
-// Action olarak çalışıyor; motoru/dil verisini indirip görüntüyü okuması
-// varsayılan sunucusuz fonksiyon süresinden (10sn) biraz daha uzun
-// sürebiliyor, bu yüzden bu route için süreyi artırıyoruz (Vercel planınız
-// izin verdiği kadarıyla).
+// Action olarak çalışıyor; Gemini'ye görüntü gönderip yapılandırılmış bir
+// yanıt alması varsayılan sunucusuz fonksiyon süresinden (10sn) biraz daha
+// uzun sürebiliyor, bu yüzden bu route için süreyi artırıyoruz (Vercel
+// planınız izin verdiği kadarıyla).
 export const maxDuration = 60;
-
-const TYPE_LABEL: Record<string, string> = {
-  vital: 'Vital Bulgu',
-  surgery: 'Ameliyat',
-  photo: 'Fotoğraf',
-  note: 'Not',
-  event: 'Olay',
-  medication: 'Tedavi',
-  feeding: 'Beslenme',
-  excretion: 'Dışkılama',
-  vomiting: 'Kusma',
-  vetcheck: 'Veteriner Kontrolü',
-  blood: 'Kan Tahlili',
-  lab: 'Laboratuvar',
-};
 
 const CATEGORY_LABEL: Record<string, string> = {
   kan_tahlili: 'Kan Tahlili',
@@ -53,19 +30,6 @@ const CATEGORY_ICON: Record<string, string> = {
   tomografi: '🧲',
   rontgen: '🩻',
   diger: '📄',
-};
-
-const STATUS_LABEL: Record<string, string> = {
-  stable: 'Stabil',
-  improving: 'İyiye Gidiyor',
-  watch: 'Yakın Takip',
-  critical: 'Kritik',
-};
-const STATUS_COLOR: Record<string, string> = {
-  stable: 'bg-green-50 text-green',
-  improving: 'bg-accentSoft text-accent',
-  watch: 'bg-amber-50 text-amber',
-  critical: 'bg-red-50 text-red',
 };
 
 function formatIstanbul(iso: string) {
@@ -83,23 +47,6 @@ function formatDateOnly(dateStr: string) {
   // olduğu gibi gg.aa.yyyy formatına çeviriyoruz.
   const [y, m, d] = dateStr.split('-');
   return `${d}.${m}.${y}`;
-}
-
-function summarizePayload(type: string, payload: any): string {
-  switch (type) {
-    case 'vital':
-      return `Isı ${payload.temp_c ?? '—'}°C · Nabız ${payload.pulse_bpm ?? '—'}/dk · Solunum ${payload.resp_rpm ?? '—'}/dk${payload.note ? ' · ' + payload.note : ''}`;
-    case 'surgery':
-      return `${payload.procedure || '—'} · Cerrah: ${payload.surgeon || '—'} · Anestezi: ${payload.anesthesia || '—'}${payload.duration_min ? ` · ${payload.duration_min} dk` : ''} · Sonuç: ${payload.outcome || '—'}${payload.postop_note ? ' · ' + payload.postop_note : ''}`;
-    case 'photo':
-      return payload.caption || 'Fotoğraf eklendi';
-    case 'note':
-      return payload.text;
-    case 'event':
-      return payload.label + (payload.note ? ' · ' + payload.note : '');
-    default:
-      return '';
-  }
 }
 
 export default async function PatientDetail({
@@ -120,6 +67,9 @@ export default async function PatientDetail({
   const { data: patient } = await supabase.from('patients').select('*').eq('id', params.id).single();
   if (!patient) notFound();
 
+  // Zaman çizelgesi artık sadece "Not" kaydı üretiyor, ama eski (yatılı
+  // hasta takibi döneminden kalma) vital/ameliyat/olay/fotoğraf kayıtları
+  // varsa okunabilir kalması için burada hâlâ hepsini çekiyoruz.
   const { data: records } = await supabase
     .from('records')
     .select('*')
@@ -142,17 +92,9 @@ export default async function PatientDetail({
     })
   );
 
-  const isInpatient = patient.patient_kind !== 'outpatient';
-
   // bind the patient id so the <form action={...}> below doesn't need a hidden input
-  const addVital = addVitalRecord.bind(null, params.id);
-  const addSurgery = addSurgeryRecord.bind(null, params.id);
   const addNote = addNoteRecord.bind(null, params.id);
-  const addEvent = addEventRecord.bind(null, params.id);
-  const updateStatus = updatePatientStatus.bind(null, params.id);
   const removePatient = deletePatient.bind(null, params.id);
-  const dischargeThisPatient = dischargePatient.bind(null, params.id);
-  const markThisPatientDeceased = markPatientDeceased.bind(null, params.id);
 
   const ownerLink = `${process.env.NEXT_PUBLIC_APP_URL}/p/${patient.access_token}`;
   // Generated server-side as a data: URI — no external QR service call, so
@@ -177,30 +119,11 @@ export default async function PatientDetail({
       <div className="card p-4 mb-5">
         <div className="flex items-center justify-between">
           <h1 className="text-lg font-bold">{patient.name}</h1>
-          <div className="flex items-center gap-2">
-            {patient.deceased_at && (
-              <span className="text-xs font-bold px-2 py-1 rounded-full bg-navy text-white">Vefat Etti</span>
-            )}
-            {patient.discharged_at && (
-              <span className="text-xs font-bold px-2 py-1 rounded-full bg-surface2 text-text3">Taburcu Edildi</span>
-            )}
-            {isInpatient ? (
-              <span className={`text-xs font-bold px-2 py-1 rounded-full ${STATUS_COLOR[patient.status]}`}>
-                {STATUS_LABEL[patient.status]}
-              </span>
-            ) : (
-              <span className="text-xs font-bold px-2 py-1 rounded-full bg-surface2 text-text3">
-                Poliklinik · e-Klinik
-              </span>
-            )}
-          </div>
+          <span className="text-xs font-bold px-2 py-1 rounded-full bg-surface2 text-text3">e-Klinik</span>
         </div>
         <div className="text-xs text-text3">
-          {patient.breed} · {patient.kennel_no} · Sahibi: {patient.owner_name}
+          {patient.breed} · Sahibi: {patient.owner_name}
         </div>
-        {patient.deceased_at && (
-          <div className="text-xs text-navy font-semibold mt-1">Vefat: {formatIstanbul(patient.deceased_at)}</div>
-        )}
         <div className="mt-3 no-print">
           <PrintButton />
         </div>
@@ -220,7 +143,8 @@ export default async function PatientDetail({
             </div>
             <CopyButton text={ownerLink} />
             <div className="text-[11px] text-text3 mt-2">
-              Bu linki veya QR kodu hasta sahibine gönderin ya da yazdırıp verin — hastanızın canlı takip sayfasına doğrudan götürür, giriş yapmalarına gerek yok.
+              Bu linki veya QR kodu hasta sahibine gönderin ya da yazdırıp verin — hastanızın e-Klinik belgelerine
+              doğrudan götürür, giriş yapmalarına gerek yok.
             </div>
           </div>
         </div>
@@ -284,98 +208,7 @@ export default async function PatientDetail({
         </div>
       </div>
 
-      {isInpatient && (
-      <div className="card p-4 mb-5 no-print">
-        <div className="font-bold text-sm mb-2">Durum Güncelle</div>
-        <form action={updateStatus} className="flex gap-2">
-          <select name="status" defaultValue={patient.status} className="flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-sm">
-            <option value="stable">Stabil</option>
-            <option value="improving">İyiye Gidiyor</option>
-            <option value="watch">Yakın Takip</option>
-            <option value="critical">Kritik</option>
-          </select>
-          <SubmitButton className="btn-primary" pendingText="Güncelleniyor…">Güncelle</SubmitButton>
-        </form>
-        <div className="text-[11px] text-text3 mt-2">
-          Durum değiştiğinde hasta sahibinin gördüğü sayfa otomatik olarak güncellenir.
-        </div>
-      </div>
-      )}
-
-      {isInpatient && (
-      <div className="card p-4 mb-5 no-print">
-        <div className="font-bold text-sm mb-2">Hızlı Olay Ekle</div>
-        <div className="grid grid-cols-2 gap-2">
-          <form action={addEvent}>
-            <input type="hidden" name="event" value="surgery_start" />
-            <SubmitButton className="btn-outline w-full text-xs" pendingText="Ekleniyor…">🔪 Ameliyata Alındı</SubmitButton>
-          </form>
-          <form action={addEvent}>
-            <input type="hidden" name="event" value="surgery_end" />
-            <SubmitButton className="btn-outline w-full text-xs" pendingText="Ekleniyor…">✅ Ameliyattan Çıktı</SubmitButton>
-          </form>
-          <form action={addEvent}>
-            <input type="hidden" name="event" value="anesthesia_start" />
-            <SubmitButton className="btn-outline w-full text-xs" pendingText="Ekleniyor…">💤 Anestezi Verildi</SubmitButton>
-          </form>
-          <form action={addEvent}>
-            <input type="hidden" name="event" value="anesthesia_end" />
-            <SubmitButton className="btn-outline w-full text-xs" pendingText="Ekleniyor…">👁️ Anesteziden Uyandı</SubmitButton>
-          </form>
-          <form action={addEvent}>
-            <input type="hidden" name="event" value="xray" />
-            <SubmitButton className="btn-outline w-full text-xs" pendingText="Ekleniyor…">🩻 Röntgen Çekildi</SubmitButton>
-          </form>
-          <form action={addEvent}>
-            <input type="hidden" name="event" value="blood_drawn" />
-            <SubmitButton className="btn-outline w-full text-xs" pendingText="Ekleniyor…">🩸 Kan Alındı</SubmitButton>
-          </form>
-          <form action={addEvent}>
-            <input type="hidden" name="event" value="blood_results" />
-            <SubmitButton className="btn-outline w-full text-xs" pendingText="Ekleniyor…">🧪 Kan Sonuçları Çıktı</SubmitButton>
-          </form>
-          <form action={addEvent}>
-            <input type="hidden" name="event" value="serum" />
-            <SubmitButton className="btn-outline w-full text-xs" pendingText="Ekleniyor…">💧 Serum Verildi</SubmitButton>
-          </form>
-          <form action={addEvent}>
-            <input type="hidden" name="event" value="injection" />
-            <SubmitButton className="btn-outline w-full text-xs" pendingText="Ekleniyor…">💉 Enjeksiyon Yapıldı</SubmitButton>
-          </form>
-        </div>
-        <div className="text-[11px] text-text3 mt-2">
-          Bu olaylar hasta sahibinin takip ekranında anında görünür.
-        </div>
-      </div>
-      )}
-
       <div className="grid sm:grid-cols-2 gap-4 mb-6 no-print">
-        {isInpatient && (
-        <form action={addVital} className="field card p-4 space-y-2">
-          <div className="font-bold text-sm mb-1">Vital Bulgu Ekle</div>
-          <input name="temp_c" type="number" step="0.1" placeholder="Isı °C" />
-          <input name="pulse_bpm" type="number" placeholder="Nabız /dk" />
-          <input name="resp_rpm" type="number" placeholder="Solunum /dk" />
-          <textarea name="note" rows={2} placeholder="Not (opsiyonel)" />
-          <SubmitButton>Kaydet</SubmitButton>
-        </form>
-        )}
-
-        {isInpatient && (
-        <form action={addSurgery} className="field card p-4 space-y-2">
-          <div className="font-bold text-sm mb-1">Ameliyat Kaydı Ekle</div>
-          <input name="procedure" placeholder="Prosedür" required />
-          <input name="surgeon" placeholder="Cerrah" />
-          <input name="anesthesia" placeholder="Anestezi" />
-          <input name="duration_min" type="number" placeholder="Süre (dk)" />
-          <input name="outcome" placeholder="Sonuç" />
-          <textarea name="postop_note" rows={2} placeholder="Post-op not" />
-          <SubmitButton>Kaydet</SubmitButton>
-        </form>
-        )}
-
-        {isInpatient && <PhotoUploadForm patientId={params.id} />}
-
         <form action={addNote} className="field card p-4 space-y-2">
           <div className="font-bold text-sm mb-1">Not Ekle</div>
           <textarea name="text" rows={3} placeholder="Not…" required />
@@ -386,46 +219,34 @@ export default async function PatientDetail({
         </form>
       </div>
 
-      <div className="text-xs font-bold text-text3 uppercase mb-2">Zaman Çizelgesi</div>
-      <div className="card divide-y divide-border mb-6">
-        {(records ?? []).map((r) => (
-          <div key={r.id} className="p-3.5">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-sm">{TYPE_LABEL[r.type] ?? r.type}</span>
-              <span className="text-xs text-text3 mono">{formatIstanbul(r.created_at)}</span>
-            </div>
-            <div className="text-xs text-text2 mt-1">{summarizePayload(r.type, r.payload)}</div>
-            <div className="text-xs text-text3 mt-1">{r.created_by_name}{r.visible_to_owner === false ? ' · sadece personel' : ''}</div>
+      {(records ?? []).length > 0 && (
+        <>
+          <div className="text-xs font-bold text-text3 uppercase mb-2">Zaman Çizelgesi</div>
+          <div className="card divide-y divide-border mb-6">
+            {(records ?? []).map((r) => (
+              <div key={r.id} className="p-3.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-sm">{r.type === 'note' ? 'Not' : r.type}</span>
+                  <span className="text-xs text-text3 mono">{formatIstanbul(r.created_at)}</span>
+                </div>
+                <div className="text-xs text-text2 mt-1">
+                  {r.type === 'note' ? r.payload?.text : JSON.stringify(r.payload)}
+                </div>
+                <div className="text-xs text-text3 mt-1">
+                  {r.created_by_name}
+                  {r.visible_to_owner === false ? ' · sadece personel' : ''}
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
-        {(records ?? []).length === 0 && <div className="p-6 text-center text-sm text-text3">Henüz kayıt yok.</div>}
-      </div>
-
-      {isInpatient && !patient.discharged_at && !patient.deceased_at && (
-        <div className="card p-4 mb-6 no-print">
-          <div className="font-bold text-sm mb-1">Hastayı Taburcu Et</div>
-          <div className="text-xs text-text3 mb-3">
-            Hasta "Tüm Hastalar" listesinde taburcu edilmiş olarak işaretlenir. Kayıtları, fotoğrafları ve hasta sahibi bağlantısı saklı kalır — sadece bilgi silinmez, hasta artık "yatılı" listede görünmez.
-          </div>
-          <DischargeForm action={dischargeThisPatient} patientName={patient.name} />
-        </div>
-      )}
-
-      {isInpatient && !patient.discharged_at && !patient.deceased_at && (
-        <div className="card p-4 mb-6 border-navySoft no-print">
-          <div className="font-bold text-sm mb-1">Hasta EX Oldu</div>
-          <div className="text-xs text-text3 mb-3">
-            Bu, hastanın vefat kaydını oluşturur. Ölüm tarihi/saati aşağıdan girilir ve hasta "Tüm Hastalar" listesinde ayrı bir "Vefat Eden" bölümüne alınır — kayıtlar silinmez. Bu bilgi hasta sahibine uygulama üzerinden otomatik gösterilmez; lütfen ailesini ayrıca bilgilendirin.
-          </div>
-          <DeceasedForm action={markThisPatientDeceased} patientName={patient.name} />
-        </div>
+        </>
       )}
 
       {isAdmin && (
         <div className="card p-4 mb-6 border-red-200 no-print">
           <div className="font-bold text-sm mb-1 text-red">Tehlikeli Bölge</div>
           <div className="text-xs text-text3 mb-3">
-            Bu hastayı ve tüm kayıtlarını (zaman çizelgesi, fotoğraflar, mesajlar) kalıcı olarak siler. Geri alınamaz.
+            Bu hastayı ve tüm kayıtlarını (zaman çizelgesi, belgeler, mesajlar) kalıcı olarak siler. Geri alınamaz.
           </div>
           <DeletePatientForm action={removePatient} patientName={patient.name} />
         </div>
