@@ -24,12 +24,15 @@ export async function extractLabResultTable(
   // yol açabiliyordu — bu da tarayıcı tarafında "Cannot use 'in' operator
   // ... in undefined" gibi anlaşılmaz bir hataya dönüşüyordu. Artık ne
   // olursa olsun her zaman { error } ya da geçerli sonuç dönüyor.
+  const t0 = Date.now();
   try {
     const supabase = createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) return { error: 'Oturumunuz sona ermiş görünüyor. Lütfen sayfayı yenileyip tekrar giriş yapın.' };
+    // eslint-disable-next-line no-console
+    console.log(`[Dijitalleştir] ${Date.now() - t0}ms: kullanıcı doğrulandı`);
 
     const { data: labResult, error: fetchError } = await supabase
       .from('lab_results')
@@ -55,8 +58,12 @@ export async function extractLabResultTable(
     if (downloadError || !fileData) {
       return { error: 'Belge indirilemedi: ' + (downloadError?.message ?? 'bilinmeyen hata') };
     }
+    // eslint-disable-next-line no-console
+    console.log(`[Dijitalleştir] ${Date.now() - t0}ms: dosya Storage'dan indirildi`);
 
     const bytes = Buffer.from(await fileData.arrayBuffer());
+    // eslint-disable-next-line no-console
+    console.log(`[Dijitalleştir] ${Date.now() - t0}ms: arrayBuffer() bitti, OCR başlıyor`);
     // OCR, çok büyük/yüksek çözünürlüklü bir fotoğrafta beklenenden uzun
     // sürebiliyor. Sunucusuz fonksiyonun kendi süre sınırının (maxDuration)
     // bizi sert bir şekilde, hiçbir düzgün hata döndürmeden kesmesini

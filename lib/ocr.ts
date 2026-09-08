@@ -58,9 +58,22 @@ async function preprocessForOcr(imageBytes: Buffer | Uint8Array): Promise<Buffer
   }
 }
 
+// Vercel'in çalışma zamanı loglarında OCR'ın TAM OLARAK hangi adımda
+// yavaşladığını görebilmek için her aşamayı zaman damgasıyla logluyoruz —
+// zaman aşımı tekrarlarsa, bir sonraki adımı tahminle değil bu loglara
+// bakarak atacağız.
+function logStep(label: string, startedAt: number) {
+  // eslint-disable-next-line no-console
+  console.log(`[OCR] ${label}: ${Date.now() - startedAt}ms (toplam)`);
+}
+
 export async function runOcr(imageBytes: Buffer | Uint8Array): Promise<string> {
+  const t0 = Date.now();
   const base = assetBaseUrl();
+  // eslint-disable-next-line no-console
+  console.log('[OCR] başladı, assetBaseUrl =', base, ' görüntü boyutu(bayt) =', imageBytes.length);
   const processed = await preprocessForOcr(imageBytes);
+  logStep('ön işleme (sharp) bitti', t0);
   // Gerçek bir fotoğrafla (yansıma/parlama, hafif eğiklik, termal yazıcı
   // dokusu içeren bir fiş) yapılan testte 'eng+tur' (iki dil birden, tam
   // sayfa düzeni analiziyle) ~4.5sn sürerken, sadece 'tur' + PSM 6 (metnin
@@ -80,12 +93,16 @@ export async function runOcr(imageBytes: Buffer | Uint8Array): Promise<string> {
     // yoksa üretimde "EROFS: read-only file system" hatasıyla çöker.
     cachePath: '/tmp',
   });
+  logStep('worker + dil verisi hazır (createWorker döndü)', t0);
   try {
     await worker.setParameters({ tessedit_pageseg_mode: '6' as any });
+    logStep('parametreler ayarlandı', t0);
     const { data } = await worker.recognize(processed);
+    logStep('recognize() bitti', t0);
     return data.text || '';
   } finally {
     await worker.terminate();
+    logStep('worker.terminate() bitti', t0);
   }
 }
 
