@@ -104,6 +104,26 @@ normal WhatsApp mesajı atmış gibi).
    kullanacak şekilde `lib/actions/ownerMessage.ts` içinde tek satır değiştirmen
    yeterli — bunu birlikte yaparız.
 
+6. **Hasta sahibine otomatik "yeni belge yüklendi" bildirimi:** Personel bir
+   hastaya e-Klinik belgesi (kan tahlili, tomografi, röntgen…) yüklediğinde,
+   sistem hasta sahibinin kayıtlı telefon numarasına otomatik bir WhatsApp
+   mesajı göndermeyi DENER (kod zaten hazır, bkz. `lib/actions/labResults.ts`).
+   Bunun çalışması için de **ayrı bir şablonun** onaylanması gerekiyor —
+   Adım 5'teki gibi **WhatsApp Manager → Message Templates → Create
+   Template**'e git ve AYNEN şunu oluştur:
+   ```
+   Ad: yeni_eklinik_belgesi
+   Kategori: Utility
+   Dil: Türkçe
+   Gövde: {{1}} isimli hastanızın {{2}} sonucu çıkmıştır. MED CARE ANIMALS linki üzerinden görüntüleyebilirsiniz: {{3}}
+   ```
+   Şablon onaylanana kadar bu bildirim sessizce gönderilemez (belge yükleme
+   işlemi yine de sorunsuz tamamlanır, sadece WhatsApp mesajı gitmez) —
+   onaylandıktan sonra ekstra bir kod değişikliğine gerek yok, otomatik
+   devreye girer. Hasta eklerken/düzenlerken telefon numarasının doğru ve
+   başında "0" ile (ör. `0532 123 45 67`) girilmiş olması yeterli, sistem
+   kendisi WhatsApp'ın istediği ülke kodlu biçime çeviriyor.
+
 ## Adım 5 — Test et
 
 1. Vercel'de yayınlanan adrese git → `/login/admin` → Adım 2.5'te oluşturduğun

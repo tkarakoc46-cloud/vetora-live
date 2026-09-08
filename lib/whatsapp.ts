@@ -71,12 +71,31 @@ export async function sendWhatsAppTemplateMessage(
   templateName: string,
   params: string[]
 ): Promise<{ ok: true; messageId: string } | { ok: false; error: string }> {
+  const to = process.env.WHATSAPP_HOSPITAL_NUMBER;
+  if (!to) {
+    return { ok: false, error: 'WhatsApp entegrasyonu yapılandırılmamış (WHATSAPP_HOSPITAL_NUMBER eksik).' };
+  }
+  return sendWhatsAppTemplateMessageTo(to, templateName, params);
+}
+
+// Aynı şablon mekanizması, ama sabit hastane numarasına DEĞİL, verilen
+// (hasta sahibinin) numarasına gönderir — e-Klinik'e yeni bir belge
+// yüklendiğinde otomatik bildirim için (bkz. lib/actions/labResults.ts).
+// `to` zaten "90XXXXXXXXXX" biçiminde normalize edilmiş olmalı (bkz.
+// lib/phone.ts) — burada tekrar biçim kontrolü yapılmaz.
+export async function sendWhatsAppTemplateMessageTo(
+  to: string,
+  templateName: string,
+  params: string[]
+): Promise<{ ok: true; messageId: string } | { ok: false; error: string }> {
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
-  const to = process.env.WHATSAPP_HOSPITAL_NUMBER;
 
-  if (!phoneNumberId || !accessToken || !to) {
+  if (!phoneNumberId || !accessToken) {
     return { ok: false, error: 'WhatsApp entegrasyonu yapılandırılmamış (ortam değişkenleri eksik).' };
+  }
+  if (!to) {
+    return { ok: false, error: 'Geçerli bir alıcı numarası yok.' };
   }
 
   try {
