@@ -1,152 +1,167 @@
 // e-Klinik "Dijitalleştir" özelliği: taranmış/fotoğraflanmış bir kan
 // tahlili sayfasındaki yazıyı okuyup düzenli bir tabloya çevirir.
 //
-// Bilinçli olarak ücretsiz, hesap/API anahtarı gerektirmeyen bir motor
-// (Tesseract OCR, tesseract.js üzerinden) kullanılıyor. Varsayılan olarak
-// tesseract.js, çalışma anında dil verisini ve WASM motorunu jsdelivr
-// CDN'den indirir — bu hem yavaş/kırılgan hem de bazı ağlarda engelleniyor.
-// Bunun yerine gerekli tüm dosyalar (motor + İngilizce/Türkçe dil verisi)
-// public/tesseract/ altında UYGULAMAYLA BİRLİKTE paketlendi; OCR çalışırken
-// hiçbir dış siteye bağlanmıyor, sadece kendi alan adımızdan (Vercel) statik
-// dosya okuyor.
+// Google Gemini'nin görüntü anlama özelliğini kullanıyor. Daha önce kendi
+// sunucumuzda çalışan ücretsiz bir motor (Tesseract) denenmişti, ama
+// Vercel'in paylaşımlı/sınırlı sunucusuz fonksiyonunda çok yavaş kalıyor ve
+// büyük fotoğraflarda sürekli zaman aşımına uğruyordu. Gemini, Google'ın
+// kendi devasa (GPU'lu) sunucularında çalıştığı için hem çok daha hızlı hem
+// de çok daha doğru okuyor — üstelik makul kullanım için ücretsiz bir
+// kotası var (kredi kartı istemiyor).
 //
-// ÖNEMLİ GÜVENLİK NOTU: OCR hiçbir zaman %100 doğru okumaz — bu yüzden bu
-// modülün ürettiği satırlar HER ZAMAN personel tarafından gözden geçirilip
-// gerekirse düzeltildikten sonra "Onayla ve Kaydet" ile kaydedilmeli
-// (bkz. components/OcrReviewPanel.tsx, lib/actions/ocr.ts). Otomatik olarak
-// hiçbir değer, personel onayı olmadan hastanın kalıcı kaydına yazılmaz.
-import { createWorker } from 'tesseract.js';
-// NOT: sharp bilerek STATİK değil, aşağıda DİNAMİK olarak import ediliyor.
-// sharp, platforma özgü bir native (derlenmiş) ikili dosya kullanıyor;
-// bu ikili herhangi bir sebeple (paketleme/platform uyuşmazlığı) yüklenemezse
-// modül en üstte `import sharp from 'sharp'` yapılmış olsaydı bu dosyanın
-// TAMAMI, dolayısıyla onu kullanan Server Action da çalışma anında
-// yüklenemez hale gelirdi — bu da personele "Cannot use 'in' operator ...
-// in undefined" gibi anlaşılmaz, hiçbir işe yaramayan bir hata olarak
-// yansırdı. Dinamik import + try/catch ile sharp yüklenemese bile OCR'ın
-// geri kalanı (ön işleme adımı atlanarak) çalışmaya devam edebiliyor.
-
-function assetBaseUrl() {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://vetora-live.vercel.app';
-  return `${appUrl.replace(/\/$/, '')}/tesseract`;
-}
-
-// Telefon kamerasıyla çekilmiş bir fotoğraf çoğu zaman OCR için gereğinden
-// çok daha büyük çözünürlükte olur — hem işlem süresini gereksiz uzatır hem
-// de sunucusuz fonksiyonun zaman sınırına yaklaşma riskini artırır. Uzun
-// kenarı 2200px'e indirip griye çeviriyoruz: OCR doğruluğunu neredeyse hiç
-// etkilemiyor (yazı zaten siyah/beyaz), ama işlemi belirgin şekilde
-// hızlandırıyor.
-async function preprocessForOcr(imageBytes: Buffer | Uint8Array): Promise<Buffer> {
-  try {
-    const sharpModule = await import('sharp');
-    const sharp = sharpModule.default;
-    return await sharp(Buffer.from(imageBytes))
-      .rotate() // EXIF yönlendirmesine göre düzelt
-      .resize({ width: 2200, height: 2200, fit: 'inside', withoutEnlargement: true })
-      .grayscale()
-      .toFormat('png')
-      .toBuffer();
-  } catch (err) {
-    // Ön işleme başarısız olursa (ör. desteklenmeyen/bozuk bir format ya da
-    // sharp'ın native modülü bu ortamda yüklenemediyse), OCR'ı orijinal
-    // dosya ile denemeye devam edelim — hiç sonuç vermemektense biraz daha
-    // yavaş da olsa denemek daha iyi.
-    // eslint-disable-next-line no-console
-    console.error('OCR ön işleme (sharp) atlandı:', err);
-    return Buffer.from(imageBytes);
-  }
-}
-
-// Vercel'in çalışma zamanı loglarında OCR'ın TAM OLARAK hangi adımda
-// yavaşladığını görebilmek için her aşamayı zaman damgasıyla logluyoruz —
-// zaman aşımı tekrarlarsa, bir sonraki adımı tahminle değil bu loglara
-// bakarak atacağız.
-function logStep(label: string, startedAt: number) {
-  // eslint-disable-next-line no-console
-  console.log(`[OCR] ${label}: ${Date.now() - startedAt}ms (toplam)`);
-}
-
-export async function runOcr(imageBytes: Buffer | Uint8Array): Promise<string> {
-  const t0 = Date.now();
-  const base = assetBaseUrl();
-  // eslint-disable-next-line no-console
-  console.log('[OCR] başladı, assetBaseUrl =', base, ' görüntü boyutu(bayt) =', imageBytes.length);
-  const processed = await preprocessForOcr(imageBytes);
-  logStep('ön işleme (sharp) bitti', t0);
-  // Gerçek bir fotoğrafla (yansıma/parlama, hafif eğiklik, termal yazıcı
-  // dokusu içeren bir fiş) yapılan testte 'eng+tur' (iki dil birden, tam
-  // sayfa düzeni analiziyle) ~4.5sn sürerken, sadece 'tur' + PSM 6 (metnin
-  // tek, düzenli bir blok olduğunu varsayan basit mod — fiş/tablo tarzı
-  // belgeler için uygun) ~1.8sn'de bitiyor: yaklaşık 2.5 kat daha hızlı,
-  // Vercel'in kısıtlı işlemci payında bunun daha da belirgin olması
-  // bekleniyor. Kalite farkı gözle görülür şekilde yok — zaten personel
-  // her satırı elle kontrol ediyor.
-  const worker = await createWorker('tur', 1, {
-    corePath: `${base}/tesseract-core.wasm.js`,
-    langPath: base,
-    gzip: true,
-    // tesseract.js varsayılan olarak indirdiği dil verisini ÇALIŞMA
-    // DİZİNİNE ('.') yazıp önbelleğe alır. Vercel'in sunucusuz
-    // fonksiyonlarında dağıtılan kod salt-okunurdur, sadece /tmp
-    // yazılabilir — bu yüzden cachePath'i açıkça /tmp'ye sabitliyoruz,
-    // yoksa üretimde "EROFS: read-only file system" hatasıyla çöker.
-    cachePath: '/tmp',
-  });
-  logStep('worker + dil verisi hazır (createWorker döndü)', t0);
-  try {
-    await worker.setParameters({ tessedit_pageseg_mode: '6' as any });
-    logStep('parametreler ayarlandı', t0);
-    const { data } = await worker.recognize(processed);
-    logStep('recognize() bitti', t0);
-    return data.text || '';
-  } finally {
-    await worker.terminate();
-    logStep('worker.terminate() bitti', t0);
-  }
-}
+// ÇALIŞMASI İÇİN GEREKEN AYAR: Vercel proje ayarlarında (Settings →
+// Environment Variables) GEMINI_API_KEY adında bir ortam değişkeni
+// tanımlı olmalı. Anahtar https://aistudio.google.com/apikey adresinden
+// ücretsiz alınabilir. Tanımlı değilse bu modül aşağıda anlaşılır bir hata
+// fırlatır (bkz. lib/actions/ocr.ts, kullanıcıya gösterilen Türkçe mesaj).
+//
+// ÖNEMLİ GÜVENLİK NOTU: yapay zeka hiçbir zaman %100 doğru okumaz — bu
+// yüzden bu modülün ürettiği satırlar HER ZAMAN personel tarafından gözden
+// geçirilip gerekirse düzeltildikten sonra "Onayla ve Kaydet" ile
+// kaydedilmeli (bkz. components/OcrReviewPanel.tsx, lib/actions/ocr.ts).
+// Otomatik olarak hiçbir değer, personel onayı olmadan hastanın kalıcı
+// kaydına yazılmaz.
 
 export type LabRow = { name: string; result: string; range: string; unit: string };
 
-// Kan tahlili raporlarında en sık görülen satır kalıpları için basit,
-// kural tabanlı bir ayrıştırıcı (yapay zeka değil — sadece düzenli ifade
-// eşleştirmesi). Mükemmel değildir; bu yüzden ayrıştıramadığı satırları da
-// (result/range/unit boş, sadece "name" alanında ham metinle) döndürür,
-// böylece hiçbir satır sessizce kaybolmaz — personel ekranda hepsini görür
-// ve gerekirse elle düzeltir/siler.
-export function parseLabRows(rawText: string): LabRow[] {
-  const lines = rawText
-    .split('\n')
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0);
+// "gemini-flash-latest" Google'ın her zaman en güncel, kararlı Flash
+// modeline işaret eden bir takma ad — sabit bir sürüm numarası
+// (ör. "gemini-2.0-flash") yazmak yerine bunu kullanmak, Google yeni bir
+// sürüm çıkardığında kodu elle güncellemek zorunda kalmamamızı sağlıyor.
+const GEMINI_MODEL = 'gemini-flash-latest';
 
-  const rows: LabRow[] = [];
+function logStep(label: string, startedAt: number) {
+  // eslint-disable-next-line no-console
+  console.log(`[Dijitalleştir] ${label}: ${Date.now() - startedAt}ms (toplam)`);
+}
 
-  // Örnek eşleşen satırlar:
-  //   "WBC 8.2 6.0 - 17.0 10^3/uL"
-  //   "GLUKOZ  98  70-120  mg/dL"
-  //   "HGB: 14.1 g/dL (12.0-18.0)"
-  const pattern1 =
-    /^([A-Za-zÇĞİÖŞÜçğıöşü().\/%\s]{2,40}?)[\s:]+([\d.,]+)\s+([\d.,]+\s*-\s*[\d.,]+)\s*([A-Za-zµ°%^*0-9\/]*)\s*$/;
-  // "İSİM: DEĞER BİRİM" (referans aralığı olmadan)
-  const pattern2 = /^([A-Za-zÇĞİÖŞÜçğıöşü().\/%\s]{2,40}?)[\s:]+([\d.,]+)\s*([A-Za-zµ°%^*0-9\/]*)\s*$/;
-
-  for (const line of lines) {
-    const m1 = line.match(pattern1);
-    if (m1) {
-      rows.push({ name: m1[1].trim(), result: m1[2].trim(), range: m1[3].replace(/\s+/g, '').trim(), unit: m1[4].trim() });
-      continue;
-    }
-    const m2 = line.match(pattern2);
-    if (m2) {
-      rows.push({ name: m2[1].trim(), result: m2[2].trim(), range: '', unit: m2[3].trim() });
-      continue;
-    }
-    // Eşleşmedi — başlık, hasta bilgisi ya da tanınmayan bir satır olabilir.
-    // Yine de kaybetmeyelim: sadece "name" alanına ham satırı koyuyoruz,
-    // personel ekranda görüp isterse silebilir.
-    rows.push({ name: line, result: '', range: '', unit: '' });
+// Telefon kamerasıyla çekilmiş bir fotoğraf çoğu zaman gereğinden çok daha
+// yüksek çözünürlükte olur — bu hem Gemini'ye gönderilecek veriyi
+// büyütüp isteği yavaşlatır hem de tek istekteki 20MB sınırına yaklaşma
+// riskini artırır. Uzun kenarı 2000px'e indirip sıkıştırılmış JPEG'e
+// çeviriyoruz. sharp'ın native modülü herhangi bir sebeple bu ortamda
+// yüklenemezse (ör. paketleme sorunu), ön işlemeyi atlayıp orijinal dosyayı
+// olduğu gibi gönderiyoruz — hiç sonuç vermemektense bu daha iyi.
+async function preprocessImage(imageBytes: Buffer | Uint8Array): Promise<{ bytes: Buffer; mimeType: string }> {
+  try {
+    const sharpModule = await import('sharp');
+    const sharp = sharpModule.default;
+    const out = await sharp(Buffer.from(imageBytes))
+      .rotate()
+      .resize({ width: 2000, height: 2000, fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 85 })
+      .toBuffer();
+    return { bytes: out, mimeType: 'image/jpeg' };
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('Görüntü ön işleme (sharp) atlandı, orijinal dosya gönderiliyor:', err);
+    return { bytes: Buffer.from(imageBytes), mimeType: 'image/jpeg' };
   }
+}
 
-  return rows;
+// Gemini'ye "sadece bu şekle uygun JSON döndür" demek için kullanılan şema
+// — bu sayede kendi regex tabanlı bir ayrıştırıcıya (eski Tesseract
+// yaklaşımı) ihtiyaç kalmıyor, Gemini satırları doğrudan yapılandırılmış
+// olarak veriyor.
+const RESPONSE_SCHEMA = {
+  type: 'ARRAY',
+  items: {
+    type: 'OBJECT',
+    properties: {
+      name: { type: 'STRING' },
+      result: { type: 'STRING' },
+      range: { type: 'STRING' },
+      unit: { type: 'STRING' },
+    },
+    required: ['name', 'result', 'range', 'unit'],
+  },
+};
+
+const PROMPT = `Bu görselde bir veteriner hastanesine ait kan tahlili / laboratuvar sonucu belgesi var. Belgede yer alan HER test satırını çıkar. Her satır için şu alanları doldur:
+- name: testin adı (ör. "WBC", "Glukoz", "ALT")
+- result: ölçülen sonuç değeri
+- range: varsa referans aralığı (ör. "6.0-17.0"), yoksa boş metin
+- unit: varsa birim (ör. "mg/dL", "10^3/uL"), yoksa boş metin
+Sadece belgede GERÇEKTEN yazılı olan bilgiyi çıkar; hiçbir değeri tahmin etme veya uydurma. Hasta adı, tarih, hastane adı gibi test satırı olmayan bilgileri dahil etme. Belgeyi okuyamıyorsan ya da hiç test satırı yoksa boş bir liste ([]) döndür.`;
+
+export async function extractLabRowsWithGemini(imageBytes: Buffer | Uint8Array): Promise<LabRow[]> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error('GEMINI_API_KEY_MISSING');
+  }
+  const t0 = Date.now();
+  const { bytes, mimeType } = await preprocessImage(imageBytes);
+  logStep('görüntü ön işleme bitti', t0);
+
+  const controller = new AbortController();
+  // Gemini normalde birkaç saniyede yanıt veriyor; yine de ağ takılırsa
+  // sunucusuz fonksiyonun kendi sert süre sınırı (maxDuration) tarafından
+  // hiç açıklama vermeden kesilmek yerine kendi kontrollü zaman aşımımızı
+  // koyuyoruz.
+  const timeout = setTimeout(() => controller.abort(), 45_000);
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [{ text: PROMPT }, { inline_data: { mime_type: mimeType, data: bytes.toString('base64') } }],
+            },
+          ],
+          generationConfig: {
+            response_mime_type: 'application/json',
+            response_schema: RESPONSE_SCHEMA,
+            temperature: 0,
+          },
+        }),
+      }
+    );
+    logStep('Gemini API yanıtı alındı', t0);
+
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => '');
+      // eslint-disable-next-line no-console
+      console.error('Gemini API hata döndürdü:', res.status, errBody);
+      if (res.status === 400 && /API key not valid/i.test(errBody)) {
+        throw new Error('GEMINI_API_KEY_INVALID');
+      }
+      if (res.status === 429) {
+        throw new Error('GEMINI_QUOTA_EXCEEDED');
+      }
+      throw new Error(`GEMINI_HTTP_${res.status}`);
+    }
+
+    const json = await res.json();
+    const text = json?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) {
+      // eslint-disable-next-line no-console
+      console.error('Gemini yanıtında metin yok:', JSON.stringify(json).slice(0, 500));
+      return [];
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      // eslint-disable-next-line no-console
+      console.error('Gemini yanıtı JSON olarak ayrıştırılamadı:', String(text).slice(0, 500));
+      return [];
+    }
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed
+      .map((r: any) => ({
+        name: String(r?.name ?? '').trim(),
+        result: String(r?.result ?? '').trim(),
+        range: String(r?.range ?? '').trim(),
+        unit: String(r?.unit ?? '').trim(),
+      }))
+      .filter((r) => r.name.length > 0);
+  } finally {
+    clearTimeout(timeout);
+  }
 }

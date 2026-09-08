@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
-import { runOcr, parseLabRows, type LabRow } from '@/lib/ocr';
+import { extractLabRowsWithGemini, type LabRow } from '@/lib/ocr';
 import { buildLabResultPdf } from '@/lib/pdf';
 
 const CATEGORY_LABEL: Record<string, string> = {
@@ -18,7 +18,7 @@ const CATEGORY_LABEL: Record<string, string> = {
 // geçirsin/düzeltsin diye (bkz. components/OcrReviewPanel.tsx).
 export async function extractLabResultTable(
   labResultId: string
-): Promise<{ rawText: string; rows: LabRow[] } | { error: string }> {
+): Promise<{ rows: LabRow[] } | { error: string }> {
   // Bütün gövde tek bir try/catch içinde: burada beklenmedik BİR TEK
   // istisna bile fonksiyonun hiçbir şey döndürmeden (undefined) bitmesine
   // yol açabiliyordu — bu da tarayıcı tarafında "Cannot use 'in' operator
@@ -63,34 +63,34 @@ export async function extractLabResultTable(
 
     const bytes = Buffer.from(await fileData.arrayBuffer());
     // eslint-disable-next-line no-console
-    console.log(`[Dijitalleştir] ${Date.now() - t0}ms: arrayBuffer() bitti, OCR başlıyor`);
-    // OCR, çok büyük/yüksek çözünürlüklü bir fotoğrafta beklenenden uzun
-    // sürebiliyor. Sunucusuz fonksiyonun kendi süre sınırının (maxDuration)
-    // bizi sert bir şekilde, hiçbir düzgün hata döndürmeden kesmesini
-    // beklemek yerine, kendi iç zaman aşımımızı koyuyoruz — böylece kullanıcı
-    // her zaman anlaşılır bir mesaj görür.
-    const rawText = await Promise.race([
-      runOcr(bytes),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('OCR_TIMEOUT')), 50_000)
-      ),
-    ]);
-    if (!rawText.trim()) {
+    console.log(`[Dijitalleştir] ${Date.now() - t0}ms: arrayBuffer() bitti, Gemini'ye gönderiliyor`);
+    const rows = await extractLabRowsWithGemini(bytes);
+    // eslint-disable-next-line no-console
+    console.log(`[Dijitalleştir] ${Date.now() - t0}ms: Gemini yanıtı işlendi, ${rows.length} satır bulundu`);
+    if (rows.length === 0) {
       return {
         error:
-          'Belgede okunabilir bir yazı bulunamadı. Fotoğrafın net, düz ve iyi aydınlatılmış olduğundan emin olup tekrar deneyin.',
+          'Belgede okunabilir bir test satırı bulunamadı. Fotoğrafın net, düz ve iyi aydınlatılmış olduğundan emin olup tekrar deneyin.',
       };
     }
-    const rows = parseLabRows(rawText);
-    return { rawText, rows };
+    return { rows };
   } catch (err: any) {
     // eslint-disable-next-line no-console
     console.error('extractLabResultTable failed', err);
-    if (err?.message === 'OCR_TIMEOUT') {
+    if (err?.message === 'GEMINI_API_KEY_MISSING') {
       return {
         error:
-          'Bu belge çok uzun sürdüğü için işlem durduruldu (büyük ihtimalle fotoğraf çok yüksek çözünürlüklü). Lütfen daha küçük/az detaylı bir fotoğrafla tekrar deneyin.',
+          'Bu özellik için gereken Gemini API anahtarı sisteme henüz eklenmemiş. Lütfen sistem yöneticinizle iletişime geçin.',
       };
+    }
+    if (err?.message === 'GEMINI_API_KEY_INVALID') {
+      return { error: 'Gemini API anahtarı geçersiz görünüyor. Lütfen sistem ayarlarını kontrol edin.' };
+    }
+    if (err?.message === 'GEMINI_QUOTA_EXCEEDED') {
+      return { error: 'Şu anda kullanım sınırına ulaşıldı. Lütfen birkaç dakika sonra tekrar deneyin.' };
+    }
+    if (err?.name === 'AbortError') {
+      return { error: 'Sunucudan zamanında yanıt alınamadı. Lütfen tekrar deneyin.' };
     }
     return { error: 'Metne çevirme başarısız oldu: ' + (err?.message ?? String(err)) };
   }
