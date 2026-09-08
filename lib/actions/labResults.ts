@@ -3,24 +3,9 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { sendWhatsAppTemplateMessageTo } from '@/lib/whatsapp';
-import { toWhatsAppNumber } from '@/lib/phone';
 
 const VALID_CATEGORIES = ['kan_tahlili', 'tomografi', 'rontgen', 'diger'];
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
-
-// WhatsApp Manager'da (Message Templates) ONAYLATILMASI gereken şablonun
-// adı ve içeriği — bkz. SETUP.md "WhatsApp bildirim şablonu" bölümü.
-// Onaylı gövde metni AYNEN şu olmalı (aksi halde Meta isteği reddeder):
-//   "{{1}} isimli hastanızın {{2}} sonucu çıkmıştır. MED CARE ANIMALS
-//    linki üzerinden görüntüleyebilirsiniz: {{3}}"
-const LAB_RESULT_TEMPLATE_NAME = 'yeni_eklinik_belgesi';
-const CATEGORY_PHRASE: Record<string, string> = {
-  kan_tahlili: 'kan tahlili',
-  tomografi: 'tomografi',
-  rontgen: 'röntgen',
-  diger: 'belge',
-};
 
 function isAllowedFile(name: string, type: string) {
   const nameLower = name.toLowerCase();
@@ -125,39 +110,6 @@ export async function finalizeLabResult(
     // dosya kalması, hasta sahibine hiç görünmeyen bir kaydın sessizce
     // kaybolmasından daha zararsız, o yüzden burada silmeye uğraşmıyoruz.
     return { error: 'Kayıt oluşturulamadı: ' + insertError.message };
-  }
-
-  // Hasta sahibine "yeni belge yüklendi" bildirimi — kasıtlı olarak
-  // EN İYİ ÇABA (best-effort): WhatsApp gönderimi başarısız olsa bile
-  // (numara kayıtlı değil, entegrasyon henüz kurulmamış, Meta hata
-  // döndürdü vb.) belge zaten kaydedildiği için personele hata
-  // GÖSTERİLMEZ — sadece sunucu loguna yazılır. Belge daha sonra
-  // "Dijitalleştir" ile PDF'e çevrilse bile burada İKİNCİ bir bildirim
-  // GÖNDERİLMEZ (bkz. lib/actions/ocr.ts) — sahip zaten orijinal
-  // belge için bir kere bilgilendirildi, aynı sonuç için tekrar
-  // rahatsız edilmesin diye.
-  try {
-    const { data: patient } = await supabase
-      .from('patients')
-      .select('name, owner_phone, access_token')
-      .eq('id', patientId)
-      .single();
-    const waNumber = toWhatsAppNumber(patient?.owner_phone);
-    if (patient && waNumber) {
-      const ownerLink = `${(process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/$/, '')}/p/${patient.access_token}`;
-      const result = await sendWhatsAppTemplateMessageTo(waNumber, LAB_RESULT_TEMPLATE_NAME, [
-        patient.name,
-        CATEGORY_PHRASE[category] ?? 'belge',
-        ownerLink,
-      ]);
-      if (!result.ok) {
-        // eslint-disable-next-line no-console
-        console.error('Hasta sahibine WhatsApp bildirimi gönderilemedi:', result.error);
-      }
-    }
-  } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('Hasta sahibine WhatsApp bildirimi gönderilirken beklenmeyen hata:', err);
   }
 
   revalidatePath(`/patients/${patientId}`);

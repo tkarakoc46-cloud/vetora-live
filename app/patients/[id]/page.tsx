@@ -11,6 +11,7 @@ import { SubmitButton } from '@/components/SubmitButton';
 import { CopyButton } from '@/components/CopyButton';
 import { LabResultUploadForm } from '@/components/LabResultUploadForm';
 import { LabResultDigitizeButton } from '@/components/OcrReviewPanel';
+import { toWhatsAppNumber } from '@/lib/phone';
 
 // e-Klinik "Dijitalleştir" (OCR) adımı bu sayfadan tetiklenen bir Server
 // Action olarak çalışıyor; Gemini'ye görüntü gönderip yapılandırılmış bir
@@ -30,6 +31,15 @@ const CATEGORY_ICON: Record<string, string> = {
   tomografi: '🧲',
   rontgen: '🩻',
   diger: '📄',
+};
+// "Hasta Sahibine Gönder" düğmesinin WhatsApp mesaj metninde kullanılan,
+// CATEGORY_LABEL'dan farklı olarak cümle içinde doğal duran küçük harfli
+// biçim (ör. "kan tahlili sonucu çıkmıştır").
+const CATEGORY_PHRASE: Record<string, string> = {
+  kan_tahlili: 'kan tahlili',
+  tomografi: 'tomografi',
+  rontgen: 'röntgen',
+  diger: 'belge',
 };
 
 function formatIstanbul(iso: string) {
@@ -97,6 +107,12 @@ export default async function PatientDetail({
   const removePatient = deletePatient.bind(null, params.id);
 
   const ownerLink = `${process.env.NEXT_PUBLIC_APP_URL}/p/${patient.access_token}`;
+  // Meta'nın WhatsApp Cloud API'si (tam otomatik gönderim) iş hesabı
+  // doğrulaması ve onaylı mesaj şablonu gerektiriyor — bunun yerine hiçbir
+  // kurulum istemeyen basit yolu kullanıyoruz: bir wa.me linki, mesaj ve
+  // hasta sahibinin numarası önceden dolu şekilde WhatsApp'ı açar, personel
+  // sadece "Gönder"e dokunur (bkz. her belge satırındaki düğme, aşağıda).
+  const ownerWaNumber = toWhatsAppNumber(patient.owner_phone);
   // Generated server-side as a data: URI — no external QR service call, so
   // this works even if the clinic's photocopied handout has no internet
   // access; it's just an image once it's on the page or printed.
@@ -161,6 +177,8 @@ export default async function PatientDetail({
         <div className="divide-y divide-border rounded-lg border border-border">
           {labResults.map((l) => {
             const isImageFile = !(l.file_name || '').toLowerCase().endsWith('.pdf');
+            const waText = `${patient.name} isimli hastanızın ${CATEGORY_PHRASE[l.category] ?? 'belge'} sonucu çıkmıştır. MED CARE ANIMALS linki üzerinden görüntüleyebilirsiniz: ${ownerLink}`;
+            const waHref = ownerWaNumber ? `https://wa.me/${ownerWaNumber}?text=${encodeURIComponent(waText)}` : null;
             return (
               <div key={l.id} className="p-3 text-sm">
                 <div className="flex items-center gap-3">
@@ -179,6 +197,17 @@ export default async function PatientDetail({
                   <span className="text-xs text-text3 whitespace-nowrap">
                     {l.taken_at ? formatDateOnly(l.taken_at) : formatIstanbul(l.created_at)}
                   </span>
+                  {waHref && (
+                    <a
+                      href={waHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-green font-semibold ml-1 whitespace-nowrap"
+                      title="Hasta sahibine WhatsApp'tan haber ver"
+                    >
+                      📱 Gönder
+                    </a>
+                  )}
                   {isImageFile && (
                     <LabResultDigitizeButton
                       patientId={params.id}
@@ -197,6 +226,11 @@ export default async function PatientDetail({
               </div>
             );
           })}
+          {labResults.length > 0 && !ownerWaNumber && (
+            <div className="px-3 py-2 text-[11px] text-text3 bg-surface2">
+              Hasta sahibine WhatsApp'tan haber vermek için önce hasta kaydına geçerli bir telefon numarası ekleyin.
+            </div>
+          )}
           {labResults.length === 0 && (
             <div className="p-4 text-center text-xs text-text3">Henüz yüklenmiş belge yok.</div>
           )}
