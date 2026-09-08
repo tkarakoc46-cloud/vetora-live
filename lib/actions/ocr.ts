@@ -65,7 +65,7 @@ export async function extractLabResultTable(
     const rawText = await Promise.race([
       runOcr(bytes),
       new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('OCR_TIMEOUT')), 45_000)
+        setTimeout(() => reject(new Error('OCR_TIMEOUT')), 50_000)
       ),
     ]);
     if (!rawText.trim()) {
