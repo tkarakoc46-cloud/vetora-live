@@ -4,7 +4,7 @@
 // clinic's real legal details before this is relied on for a Play Store
 // submission or shown to patients' owners.
 export const metadata = {
-  title: 'Gizlilik Politikası — Börü Care',
+  title: 'Gizlilik Politikası — MED CARE ANIMALS',
 };
 
 export default function PrivacyPolicy() {
@@ -14,7 +14,7 @@ export default function PrivacyPolicy() {
       <p className="text-xs text-text3 mb-6">Son güncelleme: [gg.aa.yyyy]</p>
 
       <p className="mb-4">
-        Bu gizlilik politikası, <strong>Börü Care</strong> uygulaması ([Klinik/İşletme Adı] tarafından
+        Bu gizlilik politikası, <strong>MED CARE ANIMALS</strong> uygulaması ([Klinik/İşletme Adı] tarafından
         işletilmektedir) üzerinden toplanan kişisel verilerin nasıl işlendiğini açıklar. Uygulama; veteriner
         kliniğinde yatılı tedavi gören hastaların (hayvanların) takibi ve hasta sahipleriyle iletişim amacıyla
         kullanılır.

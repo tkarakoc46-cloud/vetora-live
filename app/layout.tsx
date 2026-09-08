@@ -2,13 +2,13 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Börü Care',
+  title: 'MED CARE ANIMALS',
   description: 'Veteriner yatılı hasta takip sistemi',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'Börü Care',
+    title: 'MED CARE ANIMALS',
   },
   icons: {
     icon: '/icons/favicon-32.png',
