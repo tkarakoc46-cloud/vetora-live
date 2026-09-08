@@ -11,6 +11,7 @@ import { SubmitButton } from '@/components/SubmitButton';
 import { CopyButton } from '@/components/CopyButton';
 import { LabResultUploadForm } from '@/components/LabResultUploadForm';
 import { LabResultDigitizeButton } from '@/components/OcrReviewPanel';
+import { TomografiTemplateButton } from '@/components/TomografiReviewPanel';
 import { toWhatsAppNumber } from '@/lib/phone';
 
 // e-Klinik "Dijitalleştir" (OCR) adımı bu sayfadan tetiklenen bir Server
@@ -170,13 +171,15 @@ export default async function PatientDetail({
         <div className="font-bold text-sm mb-2">e-Klinik</div>
         <LabResultUploadForm patientId={params.id} />
         <div className="text-[11px] text-text3 mb-2">
-          Yüklenen belge (PDF veya resim) olduğu gibi kalıcı olarak arşivlenir, silinmediği sürece kaybolmaz; hasta sahibinin
+          Yüklenen belge (PDF, resim veya Word) olduğu gibi kalıcı olarak arşivlenir, silinmediği sürece kaybolmaz; hasta sahibinin
           takip linkindeki e-Klinik sekmesinde de görünür. Bir belgeye dokunduğunuzda yeni sekmede açılır — oradan
           tarayıcının/PDF görüntüleyicinin kendi paylaş veya yazdır simgesiyle yazdırabilir ya da telefonunuza kaydedebilirsiniz.
         </div>
         <div className="divide-y divide-border rounded-lg border border-border">
           {labResults.map((l) => {
-            const isImageFile = !(l.file_name || '').toLowerCase().endsWith('.pdf');
+            const fileNameLower = (l.file_name || '').toLowerCase();
+            const isImageFile = !fileNameLower.endsWith('.pdf') && !fileNameLower.endsWith('.docx');
+            const isDocxFile = fileNameLower.endsWith('.docx');
             const waText = `${patient.name} isimli hastanızın ${CATEGORY_PHRASE[l.category] ?? 'belge'} sonucu çıkmıştır. MED CARE ANIMALS linki üzerinden görüntüleyebilirsiniz: ${ownerLink}`;
             const waHref = ownerWaNumber ? `https://wa.me/${ownerWaNumber}?text=${encodeURIComponent(waText)}` : null;
             return (
@@ -217,6 +220,14 @@ export default async function PatientDetail({
                       defaultTakenAt={l.taken_at}
                     />
                   )}
+                  {isDocxFile && (
+                    <TomografiTemplateButton
+                      patientId={params.id}
+                      labResultId={l.id}
+                      defaultTitle={l.title}
+                      defaultTakenAt={l.taken_at}
+                    />
+                  )}
                   <form action={deleteLabResult.bind(null, params.id, l.id, l.storage_path)}>
                     <button type="submit" className="text-xs text-red font-semibold ml-1">
                       Sil
@@ -239,6 +250,11 @@ export default async function PatientDetail({
           🔎 Dijitalleştir: fotoğraf/tarama olarak yüklenen bir belgedeki yazıyı otomatik okuyup düzenli bir tabloya
           çevirir; siz kontrol edip onayladıktan sonra MED CARE ANIMALS logolu, yazdırılabilir bir PDF olarak arşive
           eklenir. Orijinal fotoğraf silinmez, ayrıca arşivde kalır.
+        </div>
+        <div className="text-[11px] text-text3 mt-1">
+          📐 Şablona Uygula: yüklenen düz yazı Word (.docx) tomografi raporunu okuyup Trakya Hayvan Hastanesi logolu
+          rapor şablonuna döker; siz kontrol edip onayladıktan sonra PDF olarak arşive eklenir. Orijinal Word dosyası
+          silinmez, ayrıca arşivde kalır.
         </div>
       </div>
 

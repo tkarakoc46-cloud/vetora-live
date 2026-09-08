@@ -11,7 +11,12 @@ function isAllowedFile(name: string, type: string) {
   const nameLower = name.toLowerCase();
   const isPdf = type === 'application/pdf' || nameLower.endsWith('.pdf');
   const isImage = type.startsWith('image/') || /\.(jpe?g|png|webp|heic)$/i.test(nameLower);
-  return isPdf || isImage;
+  // .docx: tomografi raporları artık düz Word belgesi olarak da
+  // yüklenebiliyor — "📐 Şablona Uygula" adımı bunu okuyup Trakya Hayvan
+  // Hastanesi şablonlu bir PDF'e çeviriyor (bkz. lib/actions/tomografi.ts).
+  const isDocx =
+    type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || nameLower.endsWith('.docx');
+  return isPdf || isImage || isDocx;
 }
 
 // e-Klinik: kan tahlili, tomografi ve röntgen belgelerinin arşivi.
@@ -58,7 +63,7 @@ export async function createLabResultUploadTicket(
     return { error: 'Yüklenecek dosya seçilmedi.' };
   }
   if (!isAllowedFile(fileName, fileType)) {
-    return { error: 'Sadece PDF veya resim (JPG/PNG) dosyası yükleyebilirsiniz.' };
+    return { error: 'Sadece PDF, resim (JPG/PNG) veya Word (.docx) dosyası yükleyebilirsiniz.' };
   }
   if (fileSize > MAX_FILE_BYTES) {
     return { error: 'Dosya çok büyük (25 MB üzeri). Lütfen daha küçük bir dosya yükleyin.' };

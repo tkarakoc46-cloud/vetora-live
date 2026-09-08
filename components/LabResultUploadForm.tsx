@@ -102,7 +102,7 @@ export function LabResultUploadForm({ patientId }: { patientId: string }) {
         ref={fileInputRef}
         name="file"
         type="file"
-        accept="application/pdf,.pdf,image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+        accept="application/pdf,.pdf,image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         required
       />
       <div className="grid grid-cols-2 gap-2">
