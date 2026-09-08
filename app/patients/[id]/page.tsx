@@ -222,7 +222,9 @@ export default async function PatientDetail({
         <div className="font-bold text-sm mb-2">e-Klinik</div>
         <LabResultUploadForm patientId={params.id} />
         <div className="text-[11px] text-text3 mb-2">
-          Yüklenen belge (PDF veya resim) olduğu gibi arşivlenir ve hasta sahibinin takip linkindeki e-Klinik sekmesinde görünür.
+          Yüklenen belge (PDF veya resim) olduğu gibi kalıcı olarak arşivlenir, silinmediği sürece kaybolmaz; hasta sahibinin
+          takip linkindeki e-Klinik sekmesinde de görünür. Bir belgeye dokunduğunuzda yeni sekmede açılır — oradan
+          tarayıcının/PDF görüntüleyicinin kendi paylaş veya yazdır simgesiyle yazdırabilir ya da telefonunuza kaydedebilirsiniz.
         </div>
         <div className="divide-y divide-border rounded-lg border border-border">
           {labResults.map((l) => (
@@ -236,7 +238,7 @@ export default async function PatientDetail({
               >
                 {l.title}
                 <span className="block text-[11px] text-text3 font-normal">
-                  {CATEGORY_LABEL[l.category] ?? 'Diğer'}
+                  {CATEGORY_LABEL[l.category] ?? 'Diğer'} · Görüntüle / Yazdır
                 </span>
               </a>
               <span className="text-xs text-text3 whitespace-nowrap">
