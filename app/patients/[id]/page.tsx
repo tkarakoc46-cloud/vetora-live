@@ -178,8 +178,14 @@ export default async function PatientDetail({
         <div className="divide-y divide-border rounded-lg border border-border">
           {labResults.map((l) => {
             const fileNameLower = (l.file_name || '').toLowerCase();
-            const isImageFile = !fileNameLower.endsWith('.pdf') && !fileNameLower.endsWith('.docx');
             const isDocxFile = fileNameLower.endsWith('.docx');
+            const isPdfFile = fileNameLower.endsWith('.pdf');
+            const isImageFile = !isPdfFile && !isDocxFile;
+            // "Şablona Uygula" sadece "Tomografi" kategorisiyle yüklenmiş bir
+            // Word (.docx) veya PDF belgesinde çıkar — kan tahlili/röntgen
+            // gibi başka kategorideki belgeleri BT raporu gibi ayırmaya
+            // çalışıp anlamsız sonuç üretmesin diye kategoriye de bakıyoruz.
+            const isTomografiTemplateEligible = l.category === 'tomografi' && (isDocxFile || isPdfFile);
             const waText = `${patient.name} isimli hastanızın ${CATEGORY_PHRASE[l.category] ?? 'belge'} sonucu çıkmıştır. MED CARE ANIMALS linki üzerinden görüntüleyebilirsiniz: ${ownerLink}`;
             const waHref = ownerWaNumber ? `https://wa.me/${ownerWaNumber}?text=${encodeURIComponent(waText)}` : null;
             return (
@@ -220,7 +226,7 @@ export default async function PatientDetail({
                       defaultTakenAt={l.taken_at}
                     />
                   )}
-                  {isDocxFile && (
+                  {isTomografiTemplateEligible && (
                     <TomografiTemplateButton
                       patientId={params.id}
                       labResultId={l.id}
@@ -252,9 +258,9 @@ export default async function PatientDetail({
           eklenir. Orijinal fotoğraf silinmez, ayrıca arşivde kalır.
         </div>
         <div className="text-[11px] text-text3 mt-1">
-          📐 Şablona Uygula: yüklenen düz yazı Word (.docx) tomografi raporunu okuyup Trakya Hayvan Hastanesi logolu
-          rapor şablonuna döker; siz kontrol edip onayladıktan sonra PDF olarak arşive eklenir. Orijinal Word dosyası
-          silinmez, ayrıca arşivde kalır.
+          📐 Şablona Uygula: "Tomografi" olarak yüklenen düz yazı bir Word (.docx) veya PDF raporunu okuyup Trakya
+          Hayvan Hastanesi logolu rapor şablonuna döker; siz kontrol edip onayladıktan sonra PDF olarak arşive
+          eklenir. Orijinal dosya silinmez, ayrıca arşivde kalır.
         </div>
       </div>
 

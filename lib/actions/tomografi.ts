@@ -2,16 +2,21 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
-import { extractDocxText, segmentTomografiReport, type TomografiDraft } from '@/lib/tomografi';
+import {
+  extractDocxText,
+  segmentTomografiReport,
+  segmentTomografiFromPdf,
+  type TomografiDraft,
+} from '@/lib/tomografi';
 import { buildTomografiPdf } from '@/lib/pdfTomografi';
 
-// Adım 1: personel bir .docx tomografi raporunun yanındaki "📐 Şablona
-// Uygula" butonuna bastığında çağrılır. Belgeyi Storage'dan indirir,
-// içindeki düz metni çıkarır ve Gemini ile başlık/bulgular/sonuç olarak
-// üçe ayırır. HİÇBİR ŞEY KAYDETMEZ — personel önce ekranda gördüğü taslağı
-// gözden geçirip (gerekirse düzeltip) "Onayla ve PDF Oluştur" demeli
-// (bkz. components/TomografiReviewPanel.tsx) — tıpkı kan tahlili
-// "Dijitalleştir" adımındaki gibi.
+// Adım 1: personel bir tomografi raporunun (.docx VEYA .pdf) yanındaki
+// "📐 Şablona Uygula" butonuna bastığında çağrılır. Belgeyi Storage'dan
+// indirir, içeriğini Gemini ile başlık/bulgular/sonuç olarak üçe ayırır.
+// HİÇBİR ŞEY KAYDETMEZ — personel önce ekranda gördüğü taslağı gözden
+// geçirip (gerekirse düzeltip) "Onayla ve PDF Oluştur" demeli (bkz.
+// components/TomografiReviewPanel.tsx) — tıpkı kan tahlili "Dijitalleştir"
+// adımındaki gibi.
 export async function extractTomografiReport(
   labResultId: string
 ): Promise<{ draft: TomografiDraft } | { error: string }> {
@@ -32,8 +37,10 @@ export async function extractTomografiReport(
     }
 
     const nameLower = (labResult.file_name || '').toLowerCase();
-    if (!nameLower.endsWith('.docx')) {
-      return { error: 'Şablona uygulama sadece Word (.docx) dosyaları için çalışır.' };
+    const isDocx = nameLower.endsWith('.docx');
+    const isPdf = nameLower.endsWith('.pdf');
+    if (!isDocx && !isPdf) {
+      return { error: 'Şablona uygulama sadece Word (.docx) veya PDF dosyaları için çalışır.' };
     }
 
     const { data: fileData, error: downloadError } = await supabase.storage
@@ -44,16 +51,23 @@ export async function extractTomografiReport(
     }
 
     const bytes = Buffer.from(await fileData.arrayBuffer());
-    const rawText = await extractDocxText(bytes);
-    if (!rawText) {
-      return { error: 'Word dosyasından metin okunamadı. Dosyanın bozuk olmadığından emin olun.' };
-    }
 
-    const draft = await segmentTomografiReport(rawText);
+    let draft: TomografiDraft;
+    if (isDocx) {
+      const rawText = await extractDocxText(bytes);
+      if (!rawText) {
+        return { error: 'Word dosyasından metin okunamadı. Dosyanın bozuk olmadığından emin olun.' };
+      }
+      draft = await segmentTomografiReport(rawText);
+    } else {
+      // PDF: metin çıkarma adımı yok — Gemini'ye doğrudan gönderiyoruz,
+      // hem düz metinli hem taranmış/fotoğraflanmış PDF'lerde çalışır.
+      draft = await segmentTomografiFromPdf(bytes);
+    }
     if (draft.findings.length === 0 && draft.sonucLines.length === 0) {
       return {
         error:
-          'Belgede tanınabilir bir rapor metni bulunamadı. Metni kontrol edip gerekirse elle düzenleyerek tekrar deneyin.',
+          'Belgede tanınabilir bir rapor metni bulunamadı. Dosyanın gerçekten bir tomografi raporu metni içerdiğinden emin olun ve tekrar deneyin.',
       };
     }
     return { draft };
