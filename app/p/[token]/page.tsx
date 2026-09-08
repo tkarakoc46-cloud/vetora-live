@@ -13,6 +13,15 @@ import { WhatsAppContact } from '@/components/WhatsAppContact';
 // şikayetinin asıl sebebi buydu. `force-dynamic`, bu sayfanın HER istekte
 // veritabanından yeniden okunmasını garanti eder.
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+// Bu üçü büyük ölçüde birbiriyle örtüşüyor — hepsini birden yazmak, Next.js
+// sürümleri/derleme yollarındaki olası yorum farklarına karşı fazladan bir
+// güvenlik payı. Asıl ek koruma middleware.ts'te: yanıta açıkça "no-store"
+// önbellek başlıkları ekliyoruz, çünkü bu ayarlar sunucu tarafındaki
+// render'ı taze tutsa da HTTP yanıt başlıklarını garanti etmiyor — araya
+// giren bir vekil/CDN ya da (özellikle) WhatsApp gibi uygulama-içi
+// tarayıcılar başlıklar açık olmadan kendi önbelleklemesini yapabiliyor.
 
 function formatDateOnly(dateStr: string) {
   const [y, m, d] = dateStr.split('-');
