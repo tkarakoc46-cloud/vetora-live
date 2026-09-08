@@ -57,7 +57,17 @@ export async function extractLabResultTable(
     }
 
     const bytes = Buffer.from(await fileData.arrayBuffer());
-    const rawText = await runOcr(bytes);
+    // OCR, çok büyük/yüksek çözünürlüklü bir fotoğrafta beklenenden uzun
+    // sürebiliyor. Sunucusuz fonksiyonun kendi süre sınırının (maxDuration)
+    // bizi sert bir şekilde, hiçbir düzgün hata döndürmeden kesmesini
+    // beklemek yerine, kendi iç zaman aşımımızı koyuyoruz — böylece kullanıcı
+    // her zaman anlaşılır bir mesaj görür.
+    const rawText = await Promise.race([
+      runOcr(bytes),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('OCR_TIMEOUT')), 45_000)
+      ),
+    ]);
     if (!rawText.trim()) {
       return {
         error:
@@ -69,6 +79,12 @@ export async function extractLabResultTable(
   } catch (err: any) {
     // eslint-disable-next-line no-console
     console.error('extractLabResultTable failed', err);
+    if (err?.message === 'OCR_TIMEOUT') {
+      return {
+        error:
+          'Bu belge çok uzun sürdüğü için işlem durduruldu (büyük ihtimalle fotoğraf çok yüksek çözünürlüklü). Lütfen daha küçük/az detaylı bir fotoğrafla tekrar deneyin.',
+      };
+    }
     return { error: 'Metne çevirme başarısız oldu: ' + (err?.message ?? String(err)) };
   }
 }
