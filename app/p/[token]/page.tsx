@@ -3,6 +3,17 @@ import { getPatientByToken } from '@/lib/owner';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { WhatsAppContact } from '@/components/WhatsAppContact';
 
+// ÖNEMLİ: bu sayfa hiçbir "dinamik" Next.js API'si (cookies/headers) ve
+// hiçbir zorunlu searchParams kullanmıyor — personel sayfalarının aksine
+// (onlar oturum çerezi okuduğu için otomatik olarak her istekte yeniden
+// render ediliyor). Bu yüzden Next.js bunu varsayılan olarak STATİK kabul
+// edip ilk ziyarette ürettiği HTML'i önbelleğe alıyordu: hasta sahibi aynı
+// linki tekrar açtığında, personel yeni belge/kayıt eklemiş olsa bile eski
+// (önbellekteki) sayfayı görüyordu — "tekrar link atmamız gerekiyor"
+// şikayetinin asıl sebebi buydu. `force-dynamic`, bu sayfanın HER istekte
+// veritabanından yeniden okunmasını garanti eder.
+export const dynamic = 'force-dynamic';
+
 function formatDateOnly(dateStr: string) {
   const [y, m, d] = dateStr.split('-');
   return `${d}.${m}.${y}`;
