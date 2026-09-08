@@ -104,25 +104,57 @@ export async function addNoteRecord(patientId: string, formData: FormData) {
 // re-reads this table on every request (and can be wired to Supabase
 // Realtime for a live-updating feed), the owner sees it moments after
 // it's taken — no polling or manual refresh needed on the clinic's side.
-export async function addPhotoRecord(patientId: string, formData: FormData) {
-  const { supabase, userId, name } = await currentStaff();
-  const file = formData.get('photo') as File | null;
-  if (!file || file.size === 0) throw new Error('Fotoğraf seçilmedi.');
+//
+// Aynı iki-adımlı yükleme deseni (bkz. lib/actions/labResults.ts'teki uzun
+// açıklama): telefon kamerasından çekilen bir fotoğraf çok kolay Vercel'in
+// Server Action'lar için uyguladığı ~4.5MB'lık platform sınırını aşıyor —
+// next.config.js'teki bodySizeLimit ayarı bu sınırı etkilemiyor. Bu yüzden
+// dosya baytları artık Vercel'den hiç geçmiyor: önce imzalı bir yükleme
+// bileti alınıyor, tarayıcı dosyayı doğrudan Supabase Storage'a yüklüyor,
+// sonra küçük bir ikinci çağrıyla veritabanı satırı oluşturuluyor.
+export async function createPhotoUploadTicket(
+  patientId: string,
+  fileName: string,
+  fileType: string,
+  fileSize: number
+): Promise<{ path: string; token: string } | { error: string }> {
+  const { supabase } = await currentStaff();
 
-  const ext = file.name.split('.').pop() || 'jpg';
+  if (!fileName || !fileSize || fileSize <= 0) return { error: 'Fotoğraf seçilmedi.' };
+  if (!fileType.startsWith('image/') && !/\.(jpe?g|png|webp|heic)$/i.test(fileName.toLowerCase())) {
+    return { error: 'Sadece resim dosyası yükleyebilirsiniz.' };
+  }
+  if (fileSize > 25 * 1024 * 1024) {
+    return { error: 'Dosya çok büyük (25 MB üzeri). Lütfen daha küçük bir dosya yükleyin.' };
+  }
+
+  const ext = fileName.split('.').pop() || 'jpg';
   const path = `${patientId}/${Date.now()}.${ext}`;
-  const { error: uploadError } = await supabase.storage
-    .from('patient-photos')
-    .upload(path, file, { contentType: file.type });
-  if (uploadError) throw uploadError;
 
-  await supabase.from('records').insert({
+  const { data, error } = await supabase.storage.from('patient-photos').createSignedUploadUrl(path);
+  if (error || !data) {
+    return { error: 'Yükleme başlatılamadı: ' + (error?.message ?? 'bilinmeyen hata') };
+  }
+  return { path: data.path, token: data.token };
+}
+
+export async function finalizePhotoRecord(
+  patientId: string,
+  input: { storagePath: string; caption: string; visibleToOwner: boolean }
+): Promise<{ error: string } | { ok: true }> {
+  const { supabase, userId, name } = await currentStaff();
+  if (!input.storagePath) return { error: 'Dosya yolu eksik — yükleme adımı tamamlanmamış olabilir.' };
+
+  const { error } = await supabase.from('records').insert({
     patient_id: patientId,
     type: 'photo',
-    payload: { storage_path: path, caption: String(formData.get('caption') || '') },
-    visible_to_owner: formData.get('visible_to_owner') !== 'off',
+    payload: { storage_path: input.storagePath, caption: input.caption || '' },
+    visible_to_owner: input.visibleToOwner,
     created_by: userId,
     created_by_name: name,
   });
+  if (error) return { error: 'Kayıt oluşturulamadı: ' + error.message };
+
   revalidatePath(`/patients/${patientId}`);
+  return { ok: true };
 }

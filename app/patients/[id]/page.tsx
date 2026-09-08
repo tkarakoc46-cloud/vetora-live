@@ -4,11 +4,10 @@ import {
   addVitalRecord,
   addSurgeryRecord,
   addNoteRecord,
-  addPhotoRecord,
   addEventRecord,
 } from '@/lib/actions/records';
 import { updatePatientStatus, deletePatient, dischargePatient, markPatientDeceased } from '@/lib/actions/patients';
-import { addLabResult, deleteLabResult } from '@/lib/actions/labResults';
+import { deleteLabResult } from '@/lib/actions/labResults';
 import { notFound } from 'next/navigation';
 import { TopBar } from '@/components/TopBar';
 import { PrintButton } from '@/components/PrintButton';
@@ -17,6 +16,8 @@ import { DischargeForm } from '@/components/DischargeForm';
 import { DeceasedForm } from '@/components/DeceasedForm';
 import { SubmitButton } from '@/components/SubmitButton';
 import { CopyButton } from '@/components/CopyButton';
+import { LabResultUploadForm } from '@/components/LabResultUploadForm';
+import { PhotoUploadForm } from '@/components/PhotoUploadForm';
 
 const TYPE_LABEL: Record<string, string> = {
   vital: 'Vital Bulgu',
@@ -139,9 +140,7 @@ export default async function PatientDetail({
   const addVital = addVitalRecord.bind(null, params.id);
   const addSurgery = addSurgeryRecord.bind(null, params.id);
   const addNote = addNoteRecord.bind(null, params.id);
-  const addPhoto = addPhotoRecord.bind(null, params.id);
   const addEvent = addEventRecord.bind(null, params.id);
-  const uploadLabResult = addLabResult.bind(null, params.id);
   const updateStatus = updatePatientStatus.bind(null, params.id);
   const removePatient = deletePatient.bind(null, params.id);
   const dischargeThisPatient = dischargePatient.bind(null, params.id);
@@ -221,25 +220,7 @@ export default async function PatientDetail({
 
       <div className="card p-4 mb-5 no-print">
         <div className="font-bold text-sm mb-2">e-Klinik</div>
-        <form action={uploadLabResult} className="field space-y-2 mb-3" encType="multipart/form-data">
-          <select name="category" defaultValue="kan_tahlili" required>
-            <option value="kan_tahlili">🩸 Kan Tahlili</option>
-            <option value="tomografi">🧲 Tomografi</option>
-            <option value="rontgen">🩻 Röntgen</option>
-            <option value="diger">📄 Diğer</option>
-          </select>
-          <input
-            name="file"
-            type="file"
-            accept="application/pdf,.pdf,image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
-            required
-          />
-          <div className="grid grid-cols-2 gap-2">
-            <input name="title" placeholder="Başlık (örn: Tam Kan Sayımı)" />
-            <input name="taken_at" type="date" />
-          </div>
-          <SubmitButton pendingText="Yükleniyor…">Belgeyi Yükle</SubmitButton>
-        </form>
+        <LabResultUploadForm patientId={params.id} />
         <div className="text-[11px] text-text3 mb-2">
           Yüklenen belge (PDF veya resim) olduğu gibi arşivlenir ve hasta sahibinin takip linkindeki e-Klinik sekmesinde görünür.
         </div>
@@ -364,14 +345,7 @@ export default async function PatientDetail({
         </form>
         )}
 
-        {isInpatient && (
-        <form action={addPhoto} className="field card p-4 space-y-2" encType="multipart/form-data">
-          <div className="font-bold text-sm mb-1">Fotoğraf Ekle</div>
-          <input name="photo" type="file" accept="image/*" capture="environment" required />
-          <input name="caption" placeholder="Açıklama (opsiyonel)" />
-          <SubmitButton pendingText="Yükleniyor…">Kaydet</SubmitButton>
-        </form>
-        )}
+        {isInpatient && <PhotoUploadForm patientId={params.id} />}
 
         <form action={addNote} className="field card p-4 space-y-2">
           <div className="font-bold text-sm mb-1">Not Ekle</div>

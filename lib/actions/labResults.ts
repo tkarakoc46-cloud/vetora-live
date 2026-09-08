@@ -1,10 +1,18 @@
 'use server';
 
-import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 
 const VALID_CATEGORIES = ['kan_tahlili', 'tomografi', 'rontgen', 'diger'];
+const MAX_FILE_BYTES = 25 * 1024 * 1024;
+
+function isAllowedFile(name: string, type: string) {
+  const nameLower = name.toLowerCase();
+  const isPdf = type === 'application/pdf' || nameLower.endsWith('.pdf');
+  const isImage = type.startsWith('image/') || /\.(jpe?g|png|webp|heic)$/i.test(nameLower);
+  return isPdf || isImage;
+}
 
 // e-Klinik: kan tahlili, tomografi ve röntgen belgelerinin arşivi.
 // Kasıtlı olarak sadece arşiv: laboratuvardan/radyolojiden çıkan PDF veya
@@ -12,67 +20,100 @@ const VALID_CATEGORIES = ['kan_tahlili', 'tomografi', 'rontgen', 'diger'];
 // tablosuna bir satır açılır. İçerik okunup ayrıştırılmaz (OCR yok) — hem
 // personel hem (görünür işaretliyse) hasta sahibi aynı dosyayı görür,
 // yanlış okunmuş bir değer riski hiç oluşmaz.
-export async function addLabResult(patientId: string, formData: FormData) {
+//
+// Yükleme İKİ ADIMA bölünmüş durumda — bu kasıtlı ve tek adımlı halinden
+// (dosyayı doğrudan bir Server Action'a POST etmek) daha karmaşık ama
+// zorunlu: Vercel, Server Action'lara giden isteklerde next.config.js'teki
+// `bodySizeLimit` ayarından TAMAMEN BAĞIMSIZ, platform seviyesinde kendi
+// istek boyutu sınırını uyguluyor (yaklaşık 4-4.5MB). Bu sınır aşıldığında
+// istek bizim kodumuza hiç ulaşmadan sessizce reddediliyor — kullanıcıya
+// "hiçbir hata yok ama hiçbir şey de olmuyor" gibi görünmesinin sebebi bu.
+// Telefonla çekilmiş bir röntgen/tomografi fotoğrafı ya da birden fazla
+// sayfalı bir PDF çok kolay bu sınırı aşıyor.
+//
+// Çözüm: dosya baytları Vercel'den HİÇ geçmiyor.
+//   1) createLabResultUploadTicket: sadece dosya adı/tipi/boyutu (birkaç
+//      bayt) gönderilir, sunucu kısa ömürlü imzalı bir "yükleme bileti"
+//      üretir (Supabase Storage createSignedUploadUrl). Bu adımda staff
+//      yetkisi (is_staff RLS) kontrol edilir.
+//   2) Tarayıcı, bu bileti kullanarak dosyayı DOĞRUDAN Supabase Storage'a
+//      yükler (bkz. components/LabResultUploadForm.tsx) — Vercel'e hiç
+//      uğramaz, dolayısıyla Vercel'in boyut sınırından etkilenmez.
+//   3) finalizeLabResult: yükleme bittikten sonra çağrılır, sadece küçük
+//      metin alanlarını (kategori/başlık/tarih) gönderir ve veritabanı
+//      satırını oluşturur.
+export async function createLabResultUploadTicket(
+  patientId: string,
+  fileName: string,
+  fileType: string,
+  fileSize: number
+): Promise<{ path: string; token: string } | { error: string }> {
   const supabase = createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) redirect('/login');
+  if (!user) return { error: 'Oturumunuz sona ermiş görünüyor. Lütfen sayfayı yenileyip tekrar giriş yapın.' };
 
-  const file = formData.get('file') as File | null;
-  if (!file || file.size === 0) {
-    redirect(`/patients/${patientId}?error=${encodeURIComponent('Yüklenecek dosya seçilmedi.')}`);
+  if (!fileName || !fileSize || fileSize <= 0) {
+    return { error: 'Yüklenecek dosya seçilmedi.' };
   }
-  const nameLower = file!.name.toLowerCase();
-  const isPdf = file!.type === 'application/pdf' || nameLower.endsWith('.pdf');
-  const isImage = file!.type.startsWith('image/') || /\.(jpe?g|png|webp|heic)$/i.test(nameLower);
-  if (!isPdf && !isImage) {
-    redirect(`/patients/${patientId}?error=${encodeURIComponent('Sadece PDF veya resim (JPG/PNG) dosyası yükleyebilirsiniz.')}`);
+  if (!isAllowedFile(fileName, fileType)) {
+    return { error: 'Sadece PDF veya resim (JPG/PNG) dosyası yükleyebilirsiniz.' };
   }
-  if (file!.size > 25 * 1024 * 1024) {
-    redirect(
-      `/patients/${patientId}?error=${encodeURIComponent('Dosya çok büyük (25 MB üzeri). Lütfen daha küçük bir dosya yükleyin.')}`
-    );
+  if (fileSize > MAX_FILE_BYTES) {
+    return { error: 'Dosya çok büyük (25 MB üzeri). Lütfen daha küçük bir dosya yükleyin.' };
   }
 
-  const category = String(formData.get('category') || 'kan_tahlili').trim();
-  if (!VALID_CATEGORIES.includes(category)) {
-    redirect(`/patients/${patientId}?error=${encodeURIComponent('Geçersiz belge türü.')}`);
-  }
-
-  const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', user!.id).single();
-
-  const safeName = file!.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
   const path = `${patientId}/${Date.now()}-${safeName}`;
 
-  const { error: uploadError } = await supabase.storage
-    .from('lab-results')
-    .upload(path, file!, { contentType: file!.type || (isPdf ? 'application/pdf' : 'application/octet-stream') });
-  if (uploadError) {
-    redirect(`/patients/${patientId}?error=${encodeURIComponent('Dosya yüklenemedi: ' + uploadError.message)}`);
+  const { data, error } = await supabase.storage.from('lab-results').createSignedUploadUrl(path);
+  if (error || !data) {
+    return { error: 'Yükleme başlatılamadı: ' + (error?.message ?? 'bilinmeyen hata') };
   }
 
-  const title = String(formData.get('title') || '').trim() || file!.name.replace(/\.[a-zA-Z0-9]+$/i, '');
-  const takenAt = String(formData.get('taken_at') || '').trim() || null;
+  return { path: data.path, token: data.token };
+}
+
+export async function finalizeLabResult(
+  patientId: string,
+  input: { storagePath: string; fileName: string; category: string; title: string; takenAt: string }
+): Promise<{ error: string } | { ok: true }> {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: 'Oturumunuz sona ermiş görünüyor. Lütfen sayfayı yenileyip tekrar giriş yapın.' };
+
+  if (!input.storagePath) return { error: 'Dosya yolu eksik — yükleme adımı tamamlanmamış olabilir.' };
+
+  const category = String(input.category || 'kan_tahlili').trim();
+  if (!VALID_CATEGORIES.includes(category)) return { error: 'Geçersiz belge türü.' };
+
+  const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', user.id).single();
+
+  const title = String(input.title || '').trim() || (input.fileName || '').replace(/\.[a-zA-Z0-9]+$/i, '');
+  const takenAt = String(input.takenAt || '').trim() || null;
 
   const { error: insertError } = await supabase.from('lab_results').insert({
     patient_id: patientId,
     category,
     title,
-    file_name: file!.name,
-    storage_path: path,
+    file_name: input.fileName,
+    storage_path: input.storagePath,
     taken_at: takenAt,
-    uploaded_by: user!.id,
+    uploaded_by: user.id,
     uploaded_by_name: profile?.full_name ?? 'Personel',
   });
   if (insertError) {
     // Dosya zaten Storage'a yüklendi ama satır oluşmadı — arşivde yetim bir
     // dosya kalması, hasta sahibine hiç görünmeyen bir kaydın sessizce
     // kaybolmasından daha zararsız, o yüzden burada silmeye uğraşmıyoruz.
-    redirect(`/patients/${patientId}?error=${encodeURIComponent('Kayıt oluşturulamadı: ' + insertError.message)}`);
+    return { error: 'Kayıt oluşturulamadı: ' + insertError.message };
   }
 
   revalidatePath(`/patients/${patientId}`);
+  return { ok: true };
 }
 
 // Yanlışlıkla yüklenmiş bir dosyayı geri almak için — sadece giriş yapmış
