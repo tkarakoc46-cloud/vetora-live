@@ -16,7 +16,18 @@
 //
 // Şablondaki özel/ücretli font (CS Rocky Vintage) burada KULLANILMIYOR —
 // yerine, benzer kalın/yuvarlak/canlı hissi veren, Türkçe karakterleri
-// tam destekleyen ücretsiz "Baloo 2" fontu (Google Fonts) kullanılıyor.
+// tam destekleyen ücretsiz "Baloo 2" fontu (Google Fonts) kullanılıyor
+// başlık/etiketler için.
+//
+// Word dosyasından gelen asıl rapor metni (bulgular + sonuç satırları)
+// ise kullanıcının isteği üzerine "Times New Roman" ile yazılıyor. Times
+// New Roman'ın kendisi Microsoft'a ait, serbestçe dağıtılamayan bir
+// font olduğundan, onun yerine "Tinos" kullanıyoruz — Google'ın özellikle
+// Times New Roman'a ölçü/görünüm olarak birebir denk gelecek şekilde
+// tasarladığı ücretsiz açık kaynak font (Times New Roman ile değiştirilen
+// belgelerde satır/sayfa kaymasın diye Google tarafından üretildi).
+// Gözle ayırt edilemeyecek kadar aynı görünüyor, Türkçe karakterleri de
+// tam destekliyor.
 import { PDFDocument, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 
@@ -68,14 +79,28 @@ export async function buildTomografiPdf(opts: {
   headerImageBytes: ArrayBuffer;
   fontRegularBytes: ArrayBuffer;
   fontBoldBytes: ArrayBuffer;
+  fontBodyBytes: ArrayBuffer;
 }): Promise<Uint8Array> {
-  const { ownerName, petName, reportDate, examTitle, findings, sonucLines, headerImageBytes, fontRegularBytes, fontBoldBytes } =
-    opts;
+  const {
+    ownerName,
+    petName,
+    reportDate,
+    examTitle,
+    findings,
+    sonucLines,
+    headerImageBytes,
+    fontRegularBytes,
+    fontBoldBytes,
+    fontBodyBytes,
+  } = opts;
 
   const pdf = await PDFDocument.create();
   pdf.registerFontkit(fontkit);
   const fontRegular = await pdf.embedFont(fontRegularBytes, { subset: false });
   const fontBold = await pdf.embedFont(fontBoldBytes, { subset: false });
+  // Word'den gelen rapor metni (bulgular + sonuç) için — "Times New
+  // Roman" yerine geçen Tinos, bkz. dosya başındaki not.
+  const fontBody = await pdf.embedFont(fontBodyBytes, { subset: false });
   const headerImage = await pdf.embedJpg(headerImageBytes);
 
   let page = pdf.addPage([PAGE_W, PAGE_H]);
@@ -151,10 +176,10 @@ export async function buildTomografiPdf(opts: {
 
   const bodyLineHeight = 15;
   for (const paragraph of findings) {
-    const lines = wrapText(paragraph, fontRegular, 10.5, contentWidth);
+    const lines = wrapText(paragraph, fontBody, 11, contentWidth);
     ensureSpace(lines.length * bodyLineHeight + 8);
     for (const line of lines) {
-      page.drawText(line, { x: MARGIN_X, y, size: 10.5, font: fontRegular, color: BODY_GRAY });
+      page.drawText(line, { x: MARGIN_X, y, size: 11, font: fontBody, color: BODY_GRAY });
       y -= bodyLineHeight;
     }
     y -= 6;
@@ -166,10 +191,10 @@ export async function buildTomografiPdf(opts: {
     page.drawText('Sonuç:', { x: MARGIN_X, y, size: 12, font: fontBold, color: BLACK });
     y -= 20;
     for (const line of sonucLines) {
-      const lines = wrapText(`•  ${line}`, fontRegular, 11, contentWidth - 10);
+      const lines = wrapText(`•  ${line}`, fontBody, 11.5, contentWidth - 10);
       ensureSpace(lines.length * bodyLineHeight + 4);
       for (const l of lines) {
-        page.drawText(l, { x: MARGIN_X + 4, y, size: 11, font: fontRegular, color: BLACK });
+        page.drawText(l, { x: MARGIN_X + 4, y, size: 11.5, font: fontBody, color: BLACK });
         y -= bodyLineHeight;
       }
     }

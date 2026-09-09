@@ -135,10 +135,14 @@ export async function saveTomografiReport(
     const examTitle = String(input.examTitle || '').trim();
 
     const appUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://vetora-live.vercel.app').replace(/\/$/, '');
-    const [headerImageBytes, fontRegularBytes, fontBoldBytes] = await Promise.all([
+    const [headerImageBytes, fontRegularBytes, fontBoldBytes, fontBodyBytes] = await Promise.all([
       fetch(`${appUrl}/brand/trakya-bt-header.jpg`).then((r) => r.arrayBuffer()),
       fetch(`${appUrl}/fonts/Baloo2-Regular.ttf`).then((r) => r.arrayBuffer()),
       fetch(`${appUrl}/fonts/Baloo2-ExtraBold.ttf`).then((r) => r.arrayBuffer()),
+      // Word'den gelen rapor metni (bulgular + sonuç) "Times New Roman"
+      // ile isteniyor — Tinos, ona serbestçe dağıtılabilen, ölçü/görünüm
+      // olarak birebir denk bir alternatif (bkz. lib/pdfTomografi.ts).
+      fetch(`${appUrl}/fonts/Tinos-Regular.ttf`).then((r) => r.arrayBuffer()),
     ]);
 
     const pdfBytes = await buildTomografiPdf({
@@ -151,6 +155,7 @@ export async function saveTomografiReport(
       headerImageBytes,
       fontRegularBytes,
       fontBoldBytes,
+      fontBodyBytes,
     });
 
     const safeName = title.replace(/[^a-zA-Z0-9._-]/g, '_') || 'bt-raporu';
