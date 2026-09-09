@@ -34,6 +34,12 @@ export function TomografiTemplateButton({
   const [examTitle, setExamTitle] = useState('');
   const [findingsText, setFindingsText] = useState('');
   const [sonucText, setSonucText] = useState('');
+  // Şablondaki sağ üstteki tarih "hapı" — önce Word/PDF belgesinin İÇİNDE
+  // geçen tarih (Gemini tarafından bulunursa) ile dolduruluyor; belgede
+  // tarih bulunamazsa, belgenin sisteme yüklendiği tarihe (defaultTakenAt)
+  // geri dönülüyor. Personel her durumda kaydetmeden önce düzeltebilir.
+  const [reportDate, setReportDate] = useState(() => (defaultTakenAt || '').slice(0, 10));
+  const [dateFromDocument, setDateFromDocument] = useState(false);
 
   async function handleOpen() {
     setOpen(true);
@@ -50,6 +56,10 @@ export function TomografiTemplateButton({
         setExamTitle(result.draft.examTitle);
         setFindingsText(result.draft.findings.join('\n\n'));
         setSonucText(result.draft.sonucLines.join('\n'));
+        if (result.draft.reportDate) {
+          setReportDate(result.draft.reportDate);
+          setDateFromDocument(true);
+        }
         setLoaded(true);
       }
     } catch (err: any) {
@@ -76,7 +86,7 @@ export function TomografiTemplateButton({
         findings,
         sonucLines,
         title,
-        takenAt: defaultTakenAt || '',
+        takenAt: reportDate || defaultTakenAt || '',
       });
       if (!result || typeof result !== 'object') {
         setError('Sunucudan geçerli bir yanıt alınamadı. Lütfen tekrar deneyin; devam ederse bana bildirin.');
@@ -145,6 +155,20 @@ export function TomografiTemplateButton({
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Başlık (örn: Kranial BT)"
+            className="w-full rounded-lg border border-border bg-surface px-2 py-1.5"
+          />
+
+          <label className="block text-text3 font-semibold">
+            Rapor Tarihi (şablonda sağ üstte görünür)
+            {dateFromDocument && <span className="text-green font-normal"> — belgeden otomatik alındı</span>}
+          </label>
+          <input
+            type="date"
+            value={reportDate}
+            onChange={(e) => {
+              setReportDate(e.target.value);
+              setDateFromDocument(false);
+            }}
             className="w-full rounded-lg border border-border bg-surface px-2 py-1.5"
           />
 

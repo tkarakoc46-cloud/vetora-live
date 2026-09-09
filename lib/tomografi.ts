@@ -25,6 +25,10 @@ export type TomografiDraft = {
   examTitle: string;
   findings: string[];
   sonucLines: string[];
+  // Belgenin içinde geçen rapor tarihi — "YYYY-MM-DD" biçiminde, ISO 8601.
+  // Belgede tanınabilir bir tarih yoksa boş string olur (bu durumda
+  // arayüzde yükleme tarihine geri dönülür, bkz. TomografiReviewPanel).
+  reportDate: string;
 };
 
 const GEMINI_MODEL = 'gemini-flash-latest';
@@ -47,8 +51,9 @@ const RESPONSE_SCHEMA = {
     examTitle: { type: 'STRING' },
     findings: { type: 'ARRAY', items: { type: 'STRING' } },
     sonucLines: { type: 'ARRAY', items: { type: 'STRING' } },
+    reportDate: { type: 'STRING' },
   },
-  required: ['examTitle', 'findings', 'sonucLines'],
+  required: ['examTitle', 'findings', 'sonucLines', 'reportDate'],
 };
 
 const INSTRUCTIONS = `Bu, bir veteriner hastanesine ait TOMOGRAFİ (BT) raporu. Rapordaki tıbbi metni şu 3 parçaya ayır:
@@ -56,8 +61,9 @@ const INSTRUCTIONS = `Bu, bir veteriner hastanesine ait TOMOGRAFİ (BT) raporu. 
 1) examTitle: incelemenin kısa başlığı/türü (ör. "KRANİAL BT", "TORAKS BT", "ABDOMEN BT"). Genelde raporun en başında kısa, büyük harfli bir satır olarak bulunur. Yoksa, içeriğe bakarak en uygun kısa başlığı sen oluştur.
 2) findings: bulgular/inceleme paragrafları — orijinal cümleleri DEĞİŞTİRMEDEN, mantıklı paragraflara ayırarak bir dizi metin parçası olarak ver.
 3) sonucLines: "Sonuç" veya "Değerlendirme" başlığından sonra gelen nihai değerlendirme cümle(leri) — her biri ayrı bir dizi elemanı olarak.
+4) reportDate: belgenin içinde geçen RAPOR/İNCELEME TARİHİ (ör. belge başlığında, üst bilgide, "Tarih:", "İnceleme Tarihi:" gibi bir etiketin yanında veya raporun herhangi bir yerinde geçen tarih). Bulursan "YYYY-MM-DD" biçiminde (ISO 8601, 4 haneli yıl-2 haneli ay-2 haneli gün) normalize ederek ver — örneğin "09.09.2026" veya "9 Eylül 2026" gördüysen "2026-09-09" olarak döndür. Belgede hiç tarih bulamazsan boş string ("") döndür, ASLA tarih uydurma.
 
-Rapor sonunda genelde bulunan sabit yasal uyarı/feragat cümlelerini (ör. "değerlendirme mevcut teknik olanaklar ve tıbbi bilgiler doğrultusunda yapılmıştır", "...klinik, muayene, laboratuvar ve varsa patoloji bulguları ile değerlendirilmesi önerilir" gibi) sonucLines veya findings içine DAHİL ETME — bunlar zaten şablonda sabit olarak var. Hasta/hasta sahibi adı, tarih, hastane adı gibi bilgileri de dahil etme, sadece tıbbi metni işle. Orijinal metindeki cümleleri olduğu gibi koru, uydurma veya özetleme yapma; okunabilir bir rapor metni bulamazsan examTitle'ı boş, findings ve sonucLines'ı boş dizi döndür.`;
+Rapor sonunda genelde bulunan sabit yasal uyarı/feragat cümlelerini (ör. "değerlendirme mevcut teknik olanaklar ve tıbbi bilgiler doğrultusunda yapılmıştır", "...klinik, muayene, laboratuvar ve varsa patoloji bulguları ile değerlendirilmesi önerilir" gibi) sonucLines veya findings içine DAHİL ETME — bunlar zaten şablonda sabit olarak var. Hasta/hasta sahibi adı, hastane adı gibi bilgileri de dahil etme, sadece tıbbi metni işle (tarih hariç — tarihi ayrıca reportDate alanına koy). Orijinal metindeki cümleleri olduğu gibi koru, uydurma veya özetleme yapma; okunabilir bir rapor metni bulamazsan examTitle'ı boş, findings ve sonucLines'ı boş dizi, reportDate'i boş string döndür.`;
 
 async function callGemini(apiKey: string, parts: any[]): Promise<any> {
   let lastError: Error | null = null;
@@ -120,7 +126,7 @@ function parseGeminiDraft(json: any): TomografiDraft {
   if (!text) {
     // eslint-disable-next-line no-console
     console.error('Gemini yanıtında metin yok:', JSON.stringify(json).slice(0, 500));
-    return { examTitle: '', findings: [], sonucLines: [] };
+    return { examTitle: '', findings: [], sonucLines: [], reportDate: '' };
   }
 
   let parsed: any;
@@ -129,8 +135,14 @@ function parseGeminiDraft(json: any): TomografiDraft {
   } catch {
     // eslint-disable-next-line no-console
     console.error('Gemini yanıtı JSON olarak ayrıştırılamadı:', String(text).slice(0, 500));
-    return { examTitle: '', findings: [], sonucLines: [] };
+    return { examTitle: '', findings: [], sonucLines: [], reportDate: '' };
   }
+
+  // reportDate sadece geçerli "YYYY-MM-DD" biçimindeyse kabul edilir —
+  // Gemini beklenmedik bir biçim döndürürse (istem dışı) sessizce boş
+  // bırakılır, arayüz o zaman yükleme tarihine geri döner.
+  const rawDate = String(parsed?.reportDate ?? '').trim();
+  const reportDate = /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : '';
 
   return {
     examTitle: String(parsed?.examTitle ?? '').trim(),
@@ -140,6 +152,7 @@ function parseGeminiDraft(json: any): TomografiDraft {
     sonucLines: Array.isArray(parsed?.sonucLines)
       ? parsed.sonucLines.map((s: any) => String(s ?? '').trim()).filter(Boolean)
       : [],
+    reportDate,
   };
 }
 
@@ -148,7 +161,7 @@ export async function segmentTomografiReport(rawText: string): Promise<Tomografi
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('GEMINI_API_KEY_MISSING');
   if (!rawText || !rawText.trim()) {
-    return { examTitle: '', findings: [], sonucLines: [] };
+    return { examTitle: '', findings: [], sonucLines: [], reportDate: '' };
   }
 
   const prompt = `${INSTRUCTIONS}\n\nRapor metni:\n"""\n${rawText.slice(0, 20_000)}\n"""`;
