@@ -29,7 +29,7 @@ const CATEGORY_LABEL: Record<string, string> = {
 };
 const CATEGORY_ICON: Record<string, string> = {
   kan_tahlili: '🩸',
-  tomografi: '🧲',
+  tomografi: '☢️',
   rontgen: '🩻',
   diger: '📄',
 };
@@ -42,6 +42,28 @@ const CATEGORY_PHRASE: Record<string, string> = {
   rontgen: 'röntgen',
   diger: 'belge',
 };
+
+// e-Klinik belge satırındaki aksiyon simgeleri — sadece ikon (metin yok),
+// dar telefon ekranlarında satırın taşmasını/kaymasını önlemek için.
+function WhatsAppIcon() {
+  return (
+    <svg viewBox="0 0 32 32" width="18" height="18" fill="#25D366" aria-hidden="true">
+      <path d="M16.004 3C9.096 3 3.5 8.596 3.5 15.504c0 2.373.657 4.59 1.797 6.484L3 29l7.178-2.256a12.42 12.42 0 0 0 5.826 1.457h.005c6.906 0 12.502-5.596 12.502-12.504C28.511 8.789 22.911 3 16.004 3Zm0 22.79h-.004a10.33 10.33 0 0 1-5.264-1.443l-.378-.225-3.912 1.229 1.246-3.812-.246-.391a10.24 10.24 0 0 1-1.576-5.44c0-5.712 4.65-10.362 10.365-10.362 2.768 0 5.369 1.08 7.326 3.038a10.28 10.28 0 0 1 3.036 7.328c0 5.713-4.65 10.078-10.593 10.078Zm5.68-7.55c-.311-.156-1.84-.908-2.126-1.012-.286-.104-.494-.156-.702.156-.208.312-.806 1.012-.988 1.22-.182.208-.364.234-.675.078-.312-.156-1.316-.485-2.507-1.547-.927-.826-1.553-1.846-1.735-2.158-.182-.312-.02-.481.137-.636.14-.14.312-.364.468-.546.156-.182.208-.312.312-.52.104-.208.052-.39-.026-.546-.078-.156-.702-1.692-.962-2.318-.253-.61-.51-.527-.702-.537l-.598-.011c-.208 0-.546.078-.832.39-.286.312-1.09 1.065-1.09 2.6 0 1.534 1.116 3.018 1.272 3.226.156.208 2.196 3.354 5.32 4.702.743.32 1.323.512 1.775.656.746.237 1.424.204 1.96.124.598-.09 1.84-.752 2.1-1.478.26-.727.26-1.35.182-1.478-.078-.13-.286-.208-.598-.364Z" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 6h18" />
+      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+    </svg>
+  );
+}
 
 function formatIstanbul(iso: string) {
   return new Date(iso).toLocaleString('tr-TR', {
@@ -206,15 +228,23 @@ export default async function PatientDetail({
                   <span className="text-xs text-text3 whitespace-nowrap">
                     {l.taken_at ? formatDateOnly(l.taken_at) : formatIstanbul(l.created_at)}
                   </span>
+                </div>
+                {/* İkinci satır: aksiyon ikonları — ayrı satırda olduğu için
+                    dar telefon ekranlarında üst satırı (başlık/tarih) yana
+                    itip panelin kaymasına/taşmasına sebep olmuyor; gerekirse
+                    kendi içinde sarabiliyor (flex-wrap). Her biri sadece
+                    ikon: metin yerine title/aria-label ile açıklanıyor. */}
+                <div className="flex items-center justify-end gap-1 flex-wrap mt-1">
                   {waHref && (
                     <a
                       href={waHref}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-xs text-green font-semibold ml-1 whitespace-nowrap"
                       title="Hasta sahibine WhatsApp'tan haber ver"
+                      aria-label="Hasta sahibine WhatsApp'tan haber ver"
+                      className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-surface2"
                     >
-                      📱 Gönder
+                      <WhatsAppIcon />
                     </a>
                   )}
                   {isImageFile && (
@@ -235,8 +265,13 @@ export default async function PatientDetail({
                     />
                   )}
                   <form action={deleteLabResult.bind(null, params.id, l.id, l.storage_path)}>
-                    <button type="submit" className="text-xs text-red font-semibold ml-1">
-                      Sil
+                    <button
+                      type="submit"
+                      title="Belgeyi sil"
+                      aria-label="Belgeyi sil"
+                      className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-surface2 text-red"
+                    >
+                      <TrashIcon />
                     </button>
                   </form>
                 </div>

@@ -107,8 +107,14 @@ export function LabResultDigitizeButton({
 
   if (!open) {
     return (
-      <button type="button" onClick={handleOpen} className="text-xs text-accent font-semibold ml-1 whitespace-nowrap">
-        🔎 Dijitalleştir
+      <button
+        type="button"
+        onClick={handleOpen}
+        title="Dijitalleştir"
+        aria-label="Dijitalleştir"
+        className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-surface2 text-base leading-none"
+      >
+        🔎
       </button>
     );
   }
