@@ -1,7 +1,7 @@
 {
   "name": "MED CARE ANIMALS",
   "short_name": "MED CARE ANIMALS",
-  "description": "Veteriner yatılı hasta takip sistemi",
+  "description": "Veteriner Hasta Sonuç Takip Sistemi",
   "start_url": "/login",
   "scope": "/",
   "display": "standalone",

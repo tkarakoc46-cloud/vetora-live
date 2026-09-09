@@ -3,7 +3,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'MED CARE ANIMALS',
-  description: 'Veteriner yatılı hasta takip sistemi',
+  description: 'Veteriner Hasta Sonuç Takip Sistemi',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
